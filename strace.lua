@@ -68,9 +68,7 @@ function lib.get_kv(key, ...)
 		local ith = select(i, ...)
 		if ith == key then
 			local val = select(i + 1, ...)
-			if type(val) == "function" then
-				val = val()
-			end
+			if type(val) == "function" then val = val() end
 			return ith, val
 		elseif ith == "message" then
 			return nil
@@ -87,18 +85,14 @@ local function get_trailing_message(stringify, ...)
 		return ""
 	elseif n == 2 then
 		local arg = select(2, ...)
-		if type(arg) == "function" then
-			arg = arg()
-		end
+		if type(arg) == "function" then arg = arg() end
 		return stringify(arg)
 	else
 		-- General case
 		local accum = {}
 		for i = 2, n do
 			local arg = select(i, ...)
-			if type(arg) == "function" then
-				arg = arg()
-			end
+			if type(arg) == "function" then arg = arg() end
 			accum[#accum + 1] = stringify(arg)
 		end
 		return tconcat(accum, " ")
@@ -118,13 +112,9 @@ local function to_struct(stringify, ...)
 	local arg1, arg2
 	while i <= n do
 		arg1 = select(i, ...)
-		if arg1 == "message" then
-			break
-		end
+		if arg1 == "message" then break end
 		arg2 = select(i + 1, ...)
-		if type(arg2) == "function" then
-			arg2 = arg2()
-		end
+		if type(arg2) == "function" then arg2 = arg2() end
 		res[arg1] = arg2
 		i = i + 2
 	end
@@ -158,26 +148,25 @@ lib.unpacked_from_struct = unpacked_from_struct
 ---Send a structured tracing message specified by the parameter pack.
 ---@param level int Trace level.
 function lib.strace(level, ...)
-	if handler then
-		return handler(level, ...)
-	end
+	if handler then return handler(level, ...) end
 end
 
 ---Set a global tracing handler
 ---@param new_handler? fun(...)
-function lib.set_handler(new_handler)
-	handler = new_handler
-end
+function lib.set_handler(new_handler) handler = new_handler end
 
 ---Get the global tracing handler
 ---@return fun(...)|nil
-function lib.get_handler()
-	return handler
-end
+function lib.get_handler() return handler end
 
 local function stringify_with(val, serpent_printer)
 	local val_t = type(val)
-	if val_t == "nil" or val_t == "number" or val_t == "string" or val_t == "boolean" then
+	if
+		val_t == "nil"
+		or val_t == "number"
+		or val_t == "string"
+		or val_t == "boolean"
+	then
 		return tostring(val)
 	elseif val_t == "function" then
 		return "(function)"
@@ -187,14 +176,10 @@ local function stringify_with(val, serpent_printer)
 end
 
 ---Convert a lua value to a compact string.
-function lib.stringify(val)
-	return stringify_with(val, serpent_line)
-end
+function lib.stringify(val) return stringify_with(val, serpent_line) end
 
 ---Convert a lua value to a pretty-printed string.
-function lib.prettify(val)
-	return stringify_with(val, serpent_block)
-end
+function lib.prettify(val) return stringify_with(val, serpent_block) end
 
 ---Convert an entire message to a raw string
 function lib.message_to_string(...)
@@ -221,9 +206,7 @@ function lib.filter(is_whitelist, filters, ...)
 	local matches = 0
 	for i = 2, n, 2 do
 		local key = select(i, ...)
-		if key == "message" then
-			break
-		end
+		if key == "message" then break end
 		local value = select(i + 1, ...)
 		local filter_value = filters[key]
 		if filter_value ~= nil then
@@ -234,15 +217,11 @@ function lib.filter(is_whitelist, filters, ...)
 				or (value == filter_value)
 			then
 				-- Passed filter
-				if not is_whitelist then
-					return false
-				end
+				if not is_whitelist then return false end
 				matches = matches + 1
 			else
 				-- Failed filter
-				if is_whitelist then
-					return false
-				end
+				if is_whitelist then return false end
 			end
 		end
 	end

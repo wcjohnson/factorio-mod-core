@@ -50,14 +50,10 @@ end
 ---@param event_name string
 function lib.dispatch(event_name, ...)
 	local event = storage._dynbind.events[event_name] --[[@as DynamicBinding.Events]]
-	if not event then
-		return
-	end
+	if not event then return end
 	for _, binding in pairs(event) do
 		local handler = handlers[binding[1]]
-		if handler then
-			handler(event_name, binding[2], ...)
-		end
+		if handler then handler(event_name, binding[2], ...) end
 	end
 end
 
@@ -77,9 +73,7 @@ end
 ---sees the corresponding event. The handler will only be called once per
 ---named event per Lua session.
 ---@param handler fun(event_name: string)
-function lib.on_event_bound(handler)
-	bind_handler = handler
-end
+function lib.on_event_bound(handler) bind_handler = handler end
 
 --------------------------------------------------------------------------------
 -- Binding

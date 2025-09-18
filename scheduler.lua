@@ -46,9 +46,7 @@ lib.ABORT = ABORT
 ---at the global level of the control phase unconditionally for each handler.
 ---@param name string
 ---@param handler Scheduler.Handler
-function lib.register_handler(name, handler)
-	handlers[name] = handler
-end
+function lib.register_handler(name, handler) handlers[name] = handler end
 
 ---Initialize the scheduler system. Must be called in the mod's `on_init` handler.
 function lib.init()
@@ -75,9 +73,7 @@ end
 ---@param tick_data NthTickEventData
 function lib.tick(tick_data)
 	local state = storage._sched --[[@as Scheduler.Storage]]
-	if not state then
-		return
-	end
+	if not state then return end
 	local tick_n = tick_data.tick
 	local task_set = state.at[tick_n]
 	if task_set then
@@ -90,14 +86,18 @@ function lib.tick(tick_data)
 					handler_result = handler(task)
 				else
 					if strace then
-						strace(ERROR, "scheduler", "missing_handler", "handler_name", task.handler_name)
+						strace(
+							ERROR,
+							"scheduler",
+							"missing_handler",
+							"handler_name",
+							task.handler_name
+						)
 					end
 					handler_result = ABORT
 				end
 				-- Returning abort code can stop recurring tasks.
-				if handler_result == ABORT then
-					state.tasks[task_id] = nil
-				end
+				if handler_result == ABORT then state.tasks[task_id] = nil end
 				if task.type == "once" then
 					state.tasks[task_id] = nil
 				elseif task.type == "many" then
@@ -113,9 +113,7 @@ end
 
 local function dont_at(state, tick, task_id)
 	local task_set = state.at[tick]
-	if task_set then
-		task_set[task_id] = nil
-	end
+	if task_set then task_set[task_id] = nil end
 end
 
 local function at(tick, handler_name, data)
@@ -130,9 +128,7 @@ local function at(tick, handler_name, data)
 	}
 	state.tasks[task_id] = task
 	do_at(tick, task_id)
-	if strace then
-		strace(TRACE, "scheduler", "create_once", "task", task)
-	end
+	if strace then strace(TRACE, "scheduler", "create_once", "task", task) end
 	return task_id
 end
 
@@ -164,13 +160,25 @@ end
 function lib.at(tick, handler_name, data)
 	if game and tick <= game.tick then
 		if strace then
-			strace(WARN, "scheduler", "past", "message", "attempted to schedule task in the past")
+			strace(
+				WARN,
+				"scheduler",
+				"past",
+				"message",
+				"attempted to schedule task in the past"
+			)
 		end
 		return nil
 	end
 	if not handlers[handler_name] then
 		if strace then
-			strace(ERROR, "scheduler", "missing_handler", "handler_name", handler_name)
+			strace(
+				ERROR,
+				"scheduler",
+				"missing_handler",
+				"handler_name",
+				handler_name
+			)
 		end
 		return nil
 	end
@@ -186,7 +194,13 @@ end
 function lib.after(ticks, handler_name, data)
 	if ticks < 1 then
 		if strace then
-			strace(WARN, "scheduler", "past", "message", "attempted to schedule task in the past")
+			strace(
+				WARN,
+				"scheduler",
+				"past",
+				"message",
+				"attempted to schedule task in the past"
+			)
 		end
 
 		return nil
@@ -204,7 +218,13 @@ end
 function lib.every(period, handler_name, data, skew)
 	if not handlers[handler_name] then
 		if strace then
-			strace(ERROR, "scheduler", "missing_handler", "handler_name", handler_name)
+			strace(
+				ERROR,
+				"scheduler",
+				"missing_handler",
+				"handler_name",
+				handler_name
+			)
 		end
 		return nil
 	end
@@ -217,9 +237,7 @@ end
 ---@return Scheduler.Task? #The task, or `nil` if it doesn't exist.
 local function get(task_id)
 	local state = storage._sched --[[@as Scheduler.Storage]]
-	if not state then
-		return nil
-	end
+	if not state then return nil end
 	return state.tasks[task_id]
 end
 lib.get = get
@@ -227,9 +245,7 @@ lib.get = get
 ---Change the period of an existing recurring task.
 function lib.set_period(task_id, period)
 	local task = lib.get(task_id) --[[@as Scheduler.RecurringTask]]
-	if not task then
-		return
-	end
+	if not task then return end
 	task.period = period
 end
 
@@ -238,17 +254,13 @@ end
 function lib.stop(task_id)
 	local state = storage._sched --[[@as Scheduler.Storage]]
 	local task = state.tasks[task_id] --[[@as Scheduler.RecurringTask]]
-	if not task then
-		return false
-	end
+	if not task then return false end
 	state.tasks[task_id] = nil
 	return true
 end
 
 ---Set strace handler. `nil` disables tracing entirely.
 ---@param handler? fun(level: int, ...)
-function lib.set_strace_handler(handler)
-	strace = handler
-end
+function lib.set_strace_handler(handler) strace = handler end
 
 return lib

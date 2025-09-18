@@ -22,12 +22,8 @@ function StateMachine:set_state(new_state)
 	end
 
 	local old_state = self.state
-	if old_state == new_state then
-		return
-	end
-	if not self:can_change_state(new_state, old_state) then
-		return
-	end
+	if old_state == new_state then return end
+	if not self:can_change_state(new_state, old_state) then return end
 
 	self.is_changing_state = true
 	self.state = new_state
@@ -47,9 +43,7 @@ end
 ---Override in subclasses.
 ---@param new_state string
 ---@param old_state string|nil
-function StateMachine:can_change_state(new_state, old_state)
-	return true
-end
+function StateMachine:can_change_state(new_state, old_state) return true end
 
 ---Fire events for when state changes. By default, calls `enter_state` methods
 ---when a state is entered and `exit_state` methods when a state is left.
@@ -59,12 +53,8 @@ end
 function StateMachine:on_changed_state(new_state, old_state)
 	local fromh = self["exit_" .. (old_state or "NO_STATE")]
 	local toh = self["enter_" .. new_state]
-	if fromh then
-		fromh(self, new_state, old_state)
-	end
-	if toh then
-		toh(self, new_state, old_state)
-	end
+	if fromh then fromh(self, new_state, old_state) end
+	if toh then toh(self, new_state, old_state) end
 end
 
 return StateMachine

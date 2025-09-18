@@ -6,9 +6,7 @@ local lib = {}
 ---Initialize the counter system. Must be called in the mod's `on_init` handler.
 ---BEFORE any counters are utilized.
 function lib.init()
-	if type(storage._counters) ~= "table" then
-		storage._counters = {}
-	end
+	if type(storage._counters) ~= "table" then storage._counters = {} end
 end
 
 ---Increment the global counter with the given key and return its next value.

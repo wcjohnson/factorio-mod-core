@@ -15,13 +15,9 @@ lib.empty = empty
 ---@param B any[]
 ---@return boolean
 function lib.a_eqeq(A, B)
-	if #A ~= #B then
-		return false
-	end
+	if #A ~= #B then return false end
 	for i = 1, #A do
-		if A[i] ~= B[i] then
-			return false
-		end
+		if A[i] ~= B[i] then return false end
 	end
 	return true
 end
@@ -59,9 +55,7 @@ end
 ---@param src table<K, V>?
 ---@return table<K, V>
 local function assign(dest, src)
-	if not src then
-		return dest
-	end
+	if not src then return dest end
 	for k, v in pairs(src) do
 		dest[k] = v
 	end
@@ -72,9 +66,7 @@ lib.assign = assign
 ---@generic T
 ---@param t T
 ---@return T
-function lib.shallow_copy(t)
-	return assign({}, t)
-end
+function lib.shallow_copy(t) return assign({}, t) end
 
 ---Concatenate all input arrays into a single new result array
 ---@generic T
@@ -107,9 +99,7 @@ function lib.concat_filter(f, ...)
 		if B ~= nil then
 			for j = 1, #B do
 				local value = B[j]
-				if f(value, j) then
-					A[#A + 1] = value
-				end
+				if f(value, j) then A[#A + 1] = value end
 			end
 		end
 	end
@@ -124,9 +114,7 @@ end
 function lib.append(A, ...)
 	for i = 1, select("#", ...) do
 		local value = select(i, ...)
-		if value ~= nil then
-			A[#A + 1] = value
-		end
+		if value ~= nil then A[#A + 1] = value end
 	end
 	return A
 end
@@ -139,9 +127,7 @@ end
 local function filter(A, f)
 	local B = {}
 	for i = 1, #A do
-		if f(A[i], i) then
-			B[#B + 1] = A[i]
-		end
+		if f(A[i], i) then B[#B + 1] = A[i] end
 	end
 	return B
 end
@@ -157,9 +143,7 @@ function lib.map(A, f)
 	local B = {}
 	for i = 1, #A do
 		local x = f(A[i], i)
-		if x ~= nil then
-			B[#B + 1] = x
-		end
+		if x ~= nil then B[#B + 1] = x end
 	end
 	return B
 end
@@ -197,9 +181,7 @@ end
 ---@return K? key The key of the first matching entry, or `nil` if none was found
 function lib.find(T, f)
 	for k, v in pairs(T) do
-		if f(v, k) then
-			return v, k
-		end
+		if f(v, k) then return v, k end
 	end
 end
 
@@ -213,9 +195,7 @@ function lib.t_map_a(T, f)
 	local A = {}
 	for k, v in pairs(T) do
 		local x = f(v, k)
-		if x ~= nil then
-			A[#A + 1] = x
-		end
+		if x ~= nil then A[#A + 1] = x end
 	end
 	return A
 end
@@ -231,9 +211,7 @@ function lib.t_map_t(T, f)
 	local U = {}
 	for k, v in pairs(T) do
 		local k2, v2 = f(k, v)
-		if k2 ~= nil then
-			U[k2] = v2
-		end
+		if k2 ~= nil then U[k2] = v2 end
 	end
 	return U
 end
@@ -286,9 +264,7 @@ end
 ---array with equal keys.
 function lib.groups(A, key)
 	return function(k, i)
-		if i > #A then
-			return nil
-		end
+		if i > #A then return nil end
 		local start = i
 		local current = A[i][k]
 		while i <= #A and A[i][k] == current do
@@ -332,9 +308,7 @@ function lib.filter_groups(A, f)
 	local result = {}
 	for i = 1, #A do
 		local group = filter(A[i], f)
-		if #group > 0 then
-			result[#result + 1] = group
-		end
+		if #group > 0 then result[#result + 1] = group end
 	end
 	return result
 end
@@ -354,9 +328,7 @@ end
 ---Iterate an array in reverse
 ---@generic T
 ---@param a T[]
-function lib.irpairs(a)
-	return irnext, a, 0
-end
+function lib.irpairs(a) return irnext, a, 0 end
 
 ---Filter an array in place.
 ---@generic T
@@ -382,9 +354,7 @@ end
 ---@return table<K, V> T The filtered table.
 function lib.filter_table_in_place(T, f)
 	for k, v in pairs(T) do
-		if not f(k, v) then
-			T[k] = nil
-		end
+		if not f(k, v) then T[k] = nil end
 	end
 	return T
 end
@@ -413,9 +383,7 @@ function lib.vector_sum(a, T1, b, T2)
 		result[k] = a * v + b * (T2[k] or 0)
 	end
 	for k, v in pairs(T2) do
-		if not T1[k] then
-			result[k] = b * v
-		end
+		if not T1[k] then result[k] = b * v end
 	end
 	return result
 end

@@ -44,8 +44,6 @@ lib.create_event = create_event
 
 ---Set strace handler. `nil` disables tracing entirely.
 ---@param handler? fun(level: int, ...)
-function lib.set_strace_handler(handler)
-	strace = handler
-end
+function lib.set_strace_handler(handler) strace = handler end
 
 return lib
