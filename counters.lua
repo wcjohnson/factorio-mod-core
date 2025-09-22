@@ -3,6 +3,8 @@
 
 local lib = {}
 
+local BIG_INT = 9007199254740000
+
 ---Initialize the counter system. Must be called in the mod's `on_init` handler.
 ---BEFORE any counters are utilized.
 function lib.init()
@@ -21,6 +23,7 @@ function lib.next(key)
 		)
 	end
 	local n = (counters[key] or 0) + 1
+	if n > BIG_INT then n = -BIG_INT end
 	counters[key] = n
 	return n
 end
