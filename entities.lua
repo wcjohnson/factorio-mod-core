@@ -13,4 +13,13 @@ function lib.resolve_possible_ghost(entity)
 	return false, entity.name, entity.type
 end
 
+---@param ghost LuaEntity A *valid* `entity-ghost`
+---@param key string
+---@param value Tags|boolean|number|string
+function lib.ghost_set_tag(ghost, key, value)
+	local tags = ghost.tags or {}
+	tags[key] = value
+	ghost.tags = tags
+end
+
 return lib
