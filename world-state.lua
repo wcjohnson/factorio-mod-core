@@ -11,20 +11,35 @@ local pos_get = position_lib.pos_get
 ---@field public position MapPosition The position of the entity.
 ---@field public surface_index uint The surface index of the entity.
 ---@field public name string The prototype name of the entity.
+---@field public key Core.WorldKey World key for this state
 
 ---String representation of a world state, suitable for use as a hash key.
 ---@alias Core.WorldKey string
 
 local lib = {}
 
+---@param pos MapPosition
+---@param surface_index uint
+---@param name string
+local function make_key(pos, surface_index, name)
+	local x, y = pos_get(pos)
+	return string.format("%2.2f:%2.2f:%d:%s", x, y, surface_index, name)
+end
+lib.make_key = make_key
+
 ---Get the world state of an entity.
 ---@param entity LuaEntity A *valid* entity.
 ---@return Core.WorldState
 function lib.get_world_state(entity)
+	local pos = entity.position
+	local surface_index = entity.surface_index
+	local name = entity.type == "entity-ghost" and entity.ghost_name
+		or entity.name
 	return {
-		position = entity.position,
-		surface_index = entity.surface_index,
-		name = entity.type == "entity-ghost" and entity.ghost_name or entity.name,
+		position = pos,
+		surface_index = surface_index,
+		name = name,
+		key = make_key(pos, surface_index, name),
 	}
 end
 
@@ -34,14 +49,7 @@ end
 function lib.get_world_key(entity)
 	local prototype_name = entity.type == "entity-ghost" and entity.ghost_name
 		or entity.name
-	local x, y = pos_get(entity.position)
-	return string.format(
-		"%2.2f:%2.2f:%d:%s",
-		x,
-		y,
-		entity.surface_index,
-		prototype_name
-	)
+	return make_key(entity.position, entity.surface_index, prototype_name)
 end
 
 ---Parse a world key string back into its components.
@@ -54,6 +62,7 @@ function lib.parse_world_key(key)
 		position = { x = tonumber(x), y = tonumber(y) },
 		surface_index = tonumber(surface_index),
 		name = name,
+		key = key,
 	}
 end
 
