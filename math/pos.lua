@@ -44,6 +44,17 @@ local function pos_distsq(pos1, pos2)
 end
 lib.pos_distsq = pos_distsq
 
+---Determine if two positions are approximately the same.
+---@param pos1 MapPosition
+---@param pos2 MapPosition
+local function pos_close(pos1, pos2)
+	local x1, y1 = pos_get(pos1)
+	local x2, y2 = pos_get(pos2)
+	local dx, dy = x2 - x1, y2 - y1
+	return dx < 0.01 and dy < 0.01
+end
+lib.pos_close = pos_close
+
 ---Create a new position, optionally cloning an existing one.
 ---@param pos_or_x? MapPosition|number
 ---@param y? number
