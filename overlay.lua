@@ -8,7 +8,7 @@ local lib = {}
 ---@field public text_lines LuaRenderObject[]
 ---@field public width number
 ---@field public line_height number
-local MultiLineTextOverlay = class()
+local MultiLineTextOverlay = class("Core.MultiLineTextOverlay")
 lib.MultiLineTextOverlay = MultiLineTextOverlay
 
 ---@param surface LuaSurface
