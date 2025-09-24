@@ -7,7 +7,7 @@ local lib = {}
 ---@return string prototype_name The resolved prototype name of the underlying entity.
 ---@return string prototype_type The resolved prototype type of the underlying entity.
 function lib.resolve_possible_ghost(entity)
-	if entity.name == "entity-ghost" then
+	if entity.type == "entity-ghost" then
 		return true, entity.ghost_name, entity.ghost_type
 	end
 	return false, entity.name, entity.type
