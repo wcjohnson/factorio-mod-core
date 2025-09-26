@@ -18,14 +18,21 @@ local pos_get = position_lib.pos_get
 
 local lib = {}
 
+---Make a world key from raw parameters.
 ---@param pos MapPosition
 ---@param surface_index uint
 ---@param name string
-local function make_key(pos, surface_index, name)
+---@return Core.WorldKey
+local function make_world_key(pos, surface_index, name)
 	local x, y = pos_get(pos)
 	return string.format("%2.2f:%2.2f:%d:%s", x, y, surface_index, name)
 end
-lib.make_key = make_key
+lib.make_world_key = make_world_key
+
+---@deprecated Use lib.make_world_key
+function lib.make_key(pos, surface_index, name)
+	return make_world_key(pos, surface_index, name)
+end
 
 ---Get the world state of an entity.
 ---@param entity LuaEntity A *valid* entity.
@@ -39,7 +46,7 @@ function lib.get_world_state(entity)
 		position = pos,
 		surface_index = surface_index,
 		name = name,
-		key = make_key(pos, surface_index, name),
+		key = make_world_key(pos, surface_index, name),
 	}
 end
 
@@ -49,7 +56,7 @@ end
 function lib.get_world_key(entity)
 	local prototype_name = entity.type == "entity-ghost" and entity.ghost_name
 		or entity.name
-	return make_key(entity.position, entity.surface_index, prototype_name)
+	return make_world_key(entity.position, entity.surface_index, prototype_name)
 end
 
 ---Parse a world key string back into its components.
