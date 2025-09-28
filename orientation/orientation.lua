@@ -28,6 +28,9 @@ Orientation.can_rotate_in_world = true
 ---Entity can be flipped in world
 Orientation.can_flip_in_world = true
 
+---Entity can mirror
+Orientation.can_mirror = true
+
 ---Create a new Orientation object representing an entity of the given class
 ---facing true north and unflipped.
 ---@param oc Core.OrientationClass
@@ -106,12 +109,22 @@ end
 ---Extract the orientation of an entity or ghost into `self`. The orientation class
 ---of the given entity must be known in advance to match `self`.
 ---@param entity_or_ghost LuaEntity A *valid* entity or ghost of this orientation's class
-function Orientation:extract(entity_or_ghost) end
+function Orientation:extract(entity_or_ghost)
+	self[3] = math.floor(entity_or_ghost.direction / 4)
+	if self.can_mirror then
+		self[4] = entity_or_ghost.mirroring and 1 or 0
+	else
+		self[4] = 0
+	end
+end
 
 ---Impose the orientation represented by `self` onto the given entity or ghost.
 ---The orientation class of the given entity must be known in advance to match `self`.
 ---@param entity_or_ghost LuaEntity A *valid* entity or ghost of this orientation's class
-function Orientation:impose(entity_or_ghost) end
+function Orientation:impose(entity_or_ghost)
+	entity_or_ghost.direction = self[3] * 4
+	if self.can_mirror then entity_or_ghost.mirroring = (self[4] == 1) end
+end
 
 ---Map from orientation class to Lua class of Orientation objects.
 ---@type table<Core.OrientationClass, table>
@@ -142,7 +155,7 @@ function lib.extract_orientation(entity)
 	if not oc then return nil end
 	local O = oc_to_lua_class[oc]:new(oc)
 	if not O then return nil end
-	-- TODO: impl
+	O:extract(entity)
 	return O
 end
 
