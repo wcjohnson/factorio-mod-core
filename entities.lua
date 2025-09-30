@@ -13,6 +13,17 @@ function lib.resolve_possible_ghost(entity)
 	return false, entity.name, entity.type
 end
 
+---Get the true prototype name of an entity, resolving ghosts.
+---@param entity LuaEntity A *valid* entity.
+---@return string prototype_name The resolved prototype name of the underlying entity.
+function lib.true_prototype_name(entity)
+	if entity.type == "entity-ghost" then
+		return entity.ghost_name
+	else
+		return entity.name
+	end
+end
+
 ---@param ghost LuaEntity A *valid* `entity-ghost`
 ---@param key string
 ---@param value Tags|boolean|number|string
