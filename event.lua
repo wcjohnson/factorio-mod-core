@@ -9,6 +9,8 @@ local tinsert = table.insert
 local pairs = _G.pairs
 local table_size = _G.table_size
 
+local EMPTY = setmetatable({}, { __newindex = function() end })
+
 ---Name of a specific event. May be a positive integer representing a `defines.event`, a string representing a custom user event, or a negative integer representing a tick interval (e.g. -60 for once per second).
 ---@alias Core.EventName int|string
 
@@ -95,7 +97,7 @@ local function make_event_callback(event_name, handlers)
 		for i = 1, #handlers do
 			handlers[i](...)
 		end
-		local dynamic_handlers = storage._event[event_name]
+		local dynamic_handlers = (storage._event or EMPTY)[event_name]
 		if dynamic_handlers then
 			for _, binding in pairs(dynamic_handlers) do
 				local handler = registered_dynamic_handlers[binding[2]]
@@ -251,7 +253,9 @@ event.bind(
 	function() event.raise("on_startup", { init = true, startup_warnings = {} }) end,
 	true
 )
+
 event.bind("on_startup", function(reset_data)
+	-- TODO: warn if mods didn't clear dynamic binds before resetting
 	storage._event = {} --[[@as Core.EventStorage ]]
 	storage._event_id = 0
 end)
