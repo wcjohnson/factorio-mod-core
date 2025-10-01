@@ -1,4 +1,6 @@
 -- Table and array functions
+
+---@class Core.Lib.Table
 local lib = {}
 
 local type = _G.type
@@ -386,6 +388,26 @@ function lib.vector_sum(a, T1, b, T2)
 		if not T1[k] then result[k] = b * v end
 	end
 	return result
+end
+
+---Given a single value, return an iterator that returns that value once.
+---Given an array, return an iterator that returns each element of the array.
+---@generic T
+---@param x T | T[]
+---@return fun(val: T | T[], idx: integer): integer?, T?
+---@return T | T[]
+---@return integer
+function lib.iter(x)
+	if type(x) == "table" then
+		return ipairs(x)
+	else
+		return function(val, idx)
+			if idx == 0 then return 1, val end
+			return nil
+		end,
+			x,
+			0
+	end
 end
 
 return lib

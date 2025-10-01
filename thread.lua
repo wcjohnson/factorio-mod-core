@@ -1,9 +1,14 @@
+---@diagnostic disable: inject-field
+
 --------------------------------------------------------------------------------
 -- Green threading/coroutine library for Factorio
 --------------------------------------------------------------------------------
 
+require("lib.core.require-guard")("lib.core.thread")
+
 local class = require("lib.core.class").class
 local counters = require("lib.core.counters")
+local event = require("lib.core.event")
 
 local table_size = _G.table_size
 local pairs = _G.pairs
@@ -16,6 +21,7 @@ local DEFAULT_MAX_BUCKET_SIZE = 5
 local DEFAULT_RESCHEDULE_INTERVAL = 60 * 10
 local DEFAULT_WORK_PERIOD = 1
 
+---@class Core.Lib.Thread
 local lib = {}
 
 local strace = nil
@@ -31,44 +37,48 @@ function lib.set_strace_handler(handler) strace = handler end
 -- Types/Data
 --------------------------------------------------------------------------------
 
----@alias Lib.Thread.IdSet {[integer]: true}
+---@alias Core.Thread.IdSet {[integer]: true}
 
 ---Storage table for threads.
----@class Lib.Thread.Storage
----@field public threads {[integer]: Lib.Thread} All threads by id.
+---@class Core.Thread.Storage
+---@field public threads {[integer]: Core.Thread} All threads by id.
 ---@field public max_workload number Empirical target workload per execution cycle. Used to determine how many threads should fit into a frame window.
 ---@field public max_bucket_size uint Maximum number of threads that can be scheduled in a single frame, regardless of work_per_frame calculations. Used to prevent degeneracy when work_per_frame is inaccurate.
----@field public buckets Lib.Thread.IdSet[] Active threads, bucketed by frame.
+---@field public buckets Core.Thread.IdSet[] Active threads, bucketed by frame.
 ---@field public bucket_workloads number[] Workload of each bucket.
 ---@field public current_bucket uint The current bucket being processed.
----@field public wake_at {[uint]: Lib.Thread.IdSet} Threads that are scheduled to wake up at a given tick.
+---@field public wake_at {[uint]: Core.Thread.IdSet} Threads that are scheduled to wake up at a given tick.
 ---@field public last_reschedule_tick uint The tick at which the last reschedule occurred.
 ---@field public work_period uint Number of idle ticks to insert between threads, plus 1. 1 is the lowest value, the recommended value, and results in threads running every tick.
 
----Initialize the threads system. Must be called in the mod's `on_init` handler.
-function lib.init()
-	---@type Lib.Thread.Storage
-	local initial_storage = {
-		threads = {},
-		max_workload = DEFAULT_MAX_WORKLOAD,
-		max_bucket_size = DEFAULT_MAX_BUCKET_SIZE,
-		work_period = DEFAULT_WORK_PERIOD,
-		buckets = { {} },
-		bucket_workloads = { 0 },
-		current_bucket = 1,
-		wake_at = {},
-		last_reschedule_tick = 0,
-	}
-	storage._thread = initial_storage
-end
+event.bind(
+	"on_startup",
+	---@param reset_data Core.ResetData
+	function(reset_data)
+		---TODO: warn about unkilled threads from previous state?
+		---@type Core.Thread.Storage
+		local initial_storage = {
+			threads = {},
+			max_workload = DEFAULT_MAX_WORKLOAD,
+			max_bucket_size = DEFAULT_MAX_BUCKET_SIZE,
+			work_period = DEFAULT_WORK_PERIOD,
+			buckets = { {} },
+			bucket_workloads = { 0 },
+			current_bucket = 1,
+			wake_at = {},
+			last_reschedule_tick = 0,
+		}
+		storage._thread = initial_storage
+	end
+)
 
----@return Lib.Thread.Storage
+---@return Core.Thread.Storage
 local function get_data()
 	---@diagnostic disable-next-line: undefined-field
 	return storage._thread
 end
 
----@class Lib.Thread
+---@class Core.Thread
 ---@field public id integer Unique ID of the thread
 ---@field public friendly_name? string Friendly name of the thread, used for debugging and logging
 ---@field public wake_at? integer The tick at which the thread should wake up. If `nil`, the thread is not sleeping.
@@ -80,7 +90,7 @@ lib.Thread = Thread
 -- Scheduler
 --------------------------------------------------------------------------------
 
----@param data Lib.Thread.Storage
+---@param data Core.Thread.Storage
 local function recompute_workload(data, bucket, bucket_index)
 	local workload = 0
 	for id in pairs(bucket) do
@@ -92,7 +102,7 @@ local function recompute_workload(data, bucket, bucket_index)
 	data.bucket_workloads[bucket_index] = workload
 end
 
----@param data Lib.Thread.Storage
+---@param data Core.Thread.Storage
 local function reschedule_all(data)
 	local buckets = { {} }
 	local bucket_workloads = { 0 }
@@ -126,8 +136,8 @@ local function reschedule_all(data)
 	data.current_bucket = 1
 end
 
----@param data Lib.Thread.Storage
----@param thread Lib.Thread
+---@param data Core.Thread.Storage
+---@param thread Core.Thread
 ---@param use_current_bucket boolean? If `true`, the thread will be scheduled in the current bucket if possible.
 local function schedule(data, thread, use_current_bucket)
 	if thread.wake_at then return end
@@ -160,9 +170,9 @@ local function schedule(data, thread, use_current_bucket)
 	bucket_workloads[n_buckets + 1] = thread_workload
 end
 
----@param data Lib.Thread.Storage
+---@param data Core.Thread.Storage
 ---@param id integer
----@param bucket Lib.Thread.IdSet?
+---@param bucket Core.Thread.IdSet?
 ---@param bucket_index integer
 local function unschedule(data, id, bucket, bucket_index)
 	bucket[id] = nil
@@ -173,68 +183,71 @@ end
 -- Executive
 --------------------------------------------------------------------------------
 
----Perform tasks for the given tick. MUST be called precisely once every tick by the `on_nth_tick(1)` handler.
----@param tick_data NthTickEventData
-function lib.tick(tick_data)
-	local data = get_data()
-	if not data then
-		if strace then strace(ERROR, "thread", "missing_data") end
-		return
-	end
-	local tick_n = tick_data.tick
+---Perform tasks for the given tick. MUST be called precisely once every tick.
+event.bind(
+	event.nth_tick(1),
+	---@param tick_data NthTickEventData
+	function(tick_data)
+		local data = get_data()
+		if not data then
+			if strace then strace(ERROR, "thread", "missing_data") end
+			return
+		end
+		local tick_n = tick_data.tick
 
-	-- Wake all threads that are scheduled to wake up at this tick
-	local wake_now = data.wake_at[tick_n]
-	if wake_now then
-		for id in pairs(wake_now) do
+		-- Wake all threads that are scheduled to wake up at this tick
+		local wake_now = data.wake_at[tick_n]
+		if wake_now then
+			for id in pairs(wake_now) do
+				local thread = data.threads[id]
+				if thread then
+					thread.wake_at = nil
+					schedule(data, thread, true)
+				end
+			end
+			data.wake_at[tick_n] = nil
+		end
+
+		-- Honor work period
+		if tick_n % data.work_period ~= 0 then return end
+
+		-- Execute all mainloops in current bucket.
+		local buckets = data.buckets
+		local current_bucket = data.current_bucket
+		local bucket = buckets[current_bucket]
+		if not bucket then
+			-- Something has mutilated the thread scheduler's state.
+			error("Thread scheduler: missing bucket, invalid state")
+			return
+		end
+		for id in pairs(bucket) do
 			local thread = data.threads[id]
 			if thread then
-				thread.wake_at = nil
-				schedule(data, thread, true)
-			end
-		end
-		data.wake_at[tick_n] = nil
-	end
-
-	-- Honor work period
-	if tick_n % data.work_period ~= 0 then return end
-
-	-- Execute all mainloops in current bucket.
-	local buckets = data.buckets
-	local current_bucket = data.current_bucket
-	local bucket = buckets[current_bucket]
-	if not bucket then
-		-- Something has mutilated the thread scheduler's state.
-		error("Thread scheduler: missing bucket, invalid state")
-		return
-	end
-	for id in pairs(bucket) do
-		local thread = data.threads[id]
-		if thread then
-			if thread.wake_at then
-				unschedule(data, id, bucket, current_bucket)
+				if thread.wake_at then
+					unschedule(data, id, bucket, current_bucket)
+				else
+					thread:main()
+				end
 			else
-				thread:main()
+				-- Thread has been killed, remove from bucket
+				unschedule(data, id, bucket, current_bucket)
 			end
-		else
-			-- Thread has been killed, remove from bucket
-			unschedule(data, id, bucket, current_bucket)
 		end
-	end
 
-	-- Move to next bucket.
-	current_bucket = current_bucket + 1
-	if current_bucket > #buckets then
-		-- If we haven't rescheduled all in a while, do so at the end of a bucket
-		-- sweep so no one is denied a timeslice.
-		if data.last_reschedule_tick + DEFAULT_RESCHEDULE_INTERVAL < tick_n then
-			data.last_reschedule_tick = tick_n
-			reschedule_all(data)
+		-- Move to next bucket.
+		current_bucket = current_bucket + 1
+		if current_bucket > #buckets then
+			-- If we haven't rescheduled all in a while, do so at the end of a bucket
+			-- sweep so no one is denied a timeslice.
+			if data.last_reschedule_tick + DEFAULT_RESCHEDULE_INTERVAL < tick_n then
+				data.last_reschedule_tick = tick_n
+				reschedule_all(data)
+			end
+			current_bucket = 1
 		end
-		current_bucket = 1
+		data.current_bucket = current_bucket
 	end
-	data.current_bucket = current_bucket
-end
+)
 
 --------------------------------------------------------------------------------
 -- API
@@ -246,13 +259,13 @@ function Thread:new()
 	local thread = setmetatable({
 		id = id,
 		wake_at = BIG_INT,
-	}, self) --[[@as Lib.Thread]]
+	}, self) --[[@as Core.Thread]]
 	local data = get_data()
 	data.threads[id] = thread
 	return thread
 end
 
----@param data Lib.Thread.Storage
+---@param data Core.Thread.Storage
 local function do_sleep_until(data, thread, tick)
 	thread.wake_at = tick
 	if tick < BIG_INT then
@@ -309,7 +322,7 @@ function Thread:main() end
 
 ---Get a thread by ID. Returns `nil` if the thread does not exist or has been killed.
 ---@param id integer The ID of the thread to get.
----@return Lib.Thread? #The thread with the given ID, or `nil` if it does not exist.
+---@return Core.Thread? #The thread with the given ID, or `nil` if it does not exist.
 function lib.get_thread(id)
 	local data = get_data()
 	return data and data.threads[id or ""]
@@ -329,8 +342,8 @@ end
 
 ---Get internal state of thread system. DO NOT mutate this or you will break
 ---threading. This is for debugging purposes only.
----@return {[integer]: Lib.Thread} #The thread map.
----@return Lib.Thread.IdSet[] #The thread buckets, indexed by frame.
+---@return {[integer]: Core.Thread} #The thread map.
+---@return Core.Thread.IdSet[] #The thread buckets, indexed by frame.
 ---@return number[] #The workload of each bucket, indexed by frame.
 function lib.debug_get_threads()
 	local data = get_data()

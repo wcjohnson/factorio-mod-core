@@ -1,21 +1,31 @@
 ---@diagnostic disable: inject-field
+
 -- Global auto-incrementing counters stored in game state. Useful for generating unique IDs.
 
-local lib = {}
+require("lib.core.require-guard")("lib.core.counters")
+
+local event = require("lib.core.event")
 
 local BIG_INT = 9007199254740000
 
----Initialize the counter system. Must be called in the mod's `on_init` handler.
----BEFORE any counters are utilized.
-function lib.init()
-	if type(storage._counters) ~= "table" then storage._counters = {} end
-end
+---@alias Core.CounterStorage { [string]: int64 }
+
+---@class Core.Lib.Counters
+local lib = {}
+
+event.bind("on_startup", function()
+	-- We don't reset existing counters on startup to ensure uniqueness of
+	-- previously generated IDs across restarts.
+	if type(storage._counters) ~= "table" then
+		storage._counters = {} --[[@as Core.CounterStorage]]
+	end
+end)
 
 ---Increment the global counter with the given key and return its next value.
 ---@param key string The key of the counter to increment.
 ---@return integer #The next value of the counter
 function lib.next(key)
-	local counters = storage._counters --[[@as {[string]: integer}]]
+	local counters = storage._counters
 	if not counters then
 		-- We have to crash here for reasons of determinism.
 		error(
@@ -32,7 +42,7 @@ end
 ---@param key string The key of the counter to examine.
 ---@return integer? #The current value of the counter or `nil` if it has not been set.
 function lib.peek(key)
-	local counters = storage._counters --[[@as {[string]: integer}]]
+	local counters = storage._counters
 	if not counters then
 		-- We have to crash here for reasons of determinism.
 		error(

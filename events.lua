@@ -12,6 +12,7 @@ local mod_name = script.mod_name
 --selene: allow(unused_variable)
 
 ---Create an event.
+---@deprecated Use `event` instead.
 ---@generic T1, T2, T3, T4, T5
 ---@param name string The name of the event
 ---@param p1 `T1` Unused, but required for type inference
