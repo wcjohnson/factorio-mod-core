@@ -31,6 +31,9 @@ local EMPTY = setmetatable({}, { __newindex = function() end })
 ---@alias Core.EventHandler.on_shutdown fun(reset_data: Core.ResetData)
 ---@alias Core.EventHandler.on_try_shutdown fun(reset_data: Core.ResetData)
 
+---@alias Core.EventRaiser.NoArg fun(name: string)
+---@alias Core.EventRaiser Core.EventRaiser.NoArg
+
 ---@class (exact) Core.ResetData
 ---@field public init boolean True if this is the first initialization of the mod.
 ---@field public handoff boolean True if this is a handoff for a startup/shutdown sequence.
@@ -154,7 +157,7 @@ end
 local event = {}
 
 ---Unconditionally bind a handler to an event. This MUST be called at the top
----of the control phase and may not be called conditionally. Handlers may not
+---of the control phase and MUST NOT be called conditionally. Handlers may not
 ---be unbound.
 ---@param event_names Core.EventName|Core.EventName[] The event to bind to. May be a string for a custom event, a member of `defines.events`, or the return value of `event.nth_tick`. Multiple events may be given as an array.
 ---@param handler fun(...) The handler function.
@@ -167,8 +170,8 @@ function event.bind(event_names, handler, first)
 	end
 end
 
----Raise a custom event.
----@param user_event_name string The name of the custom event to raise.
+---Raise a user-defined event.
+---@param user_event_name string The name of the user event to raise.
 ---@param ... any Arguments to pass to the event handlers.
 function event.raise(user_event_name, ...)
 	local handlers = static_handlers[user_event_name]
@@ -177,7 +180,7 @@ function event.raise(user_event_name, ...)
 			handlers[i](...)
 		end
 	end
-	local dynamic_handlers = storage._event[user_event_name]
+	local dynamic_handlers = (storage._event or EMPTY)[user_event_name]
 	if dynamic_handlers then
 		for _, binding in pairs(dynamic_handlers) do
 			local handler = registered_dynamic_handlers[binding[2]]
