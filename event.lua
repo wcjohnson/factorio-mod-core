@@ -34,6 +34,9 @@ local EMPTY = setmetatable({}, { __newindex = function() end })
 ---@alias Core.EventRaiser.NoArg fun(name: string)
 ---@alias Core.EventRaiser Core.EventRaiser.NoArg
 
+---@alias Core.EventBinder.NoArg fun(name: string, handler: fun(), first?: boolean)
+---@alias Core.EventBinder Core.EventBinder.NoArg
+
 ---@class (exact) Core.ResetData
 ---@field public init boolean True if this is the first initialization of the mod.
 ---@field public handoff boolean True if this is a handoff for a startup/shutdown sequence.
