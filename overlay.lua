@@ -3,6 +3,16 @@ local pos = require("lib.core.math.pos")
 
 local lib = {}
 
+---Destroy a collection of render objects.
+---@param ros? LuaRenderObject[]
+local function destroy_render_objects(ros)
+	if not ros then return end
+	for _, ro in pairs(ros) do
+		ro.destroy()
+	end
+end
+lib.destroy_render_objects = destroy_render_objects
+
 ---@class Core.MultiLineTextOverlay
 ---@field public backdrop LuaRenderObject
 ---@field public text_lines LuaRenderObject[]
