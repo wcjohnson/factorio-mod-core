@@ -1,5 +1,9 @@
 ---@diagnostic disable: inject-field
 
+-- Core event handling implementation. Loosely based on the stdlib event system.
+-- Implementation should be more performant, and has support for correct
+-- dynamic event binding as well as subtick event triggers.
+
 local require_guard = require("lib.core.require-guard")
 require_guard("lib.core.event")
 local tlib = require("lib.core.table")
@@ -52,6 +56,8 @@ local script_event_set = {
 	["on_shutdown"] = true,
 	["on_try_shutdown"] = true,
 }
+
+local is_top_of_control = true
 
 ---@type {[int|string]: fun(...)[]}
 local static_handlers = {}
@@ -254,6 +260,36 @@ function event.register_dynamic_handler(handler_name, handler)
 	registered_dynamic_handlers[handler_name] = handler
 end
 
+local INVISIBLE_LINE = {
+	color = { 0, 0, 0, 0 },
+	width = 0,
+	from = { 0, 0 },
+	to = { 0, 0 },
+	surface = 1,
+}
+
+---Cause a dynamic event handler to be triggered on the next subtick.
+---@param handler_name string The name of the handler to trigger. This
+---must have been registered with `event.register_dynamic_handler`.
+---@param event_name string The name of the event to pass to the handler as its first argument.
+---@param handler_data? any Optional data to pass to the handler when it is invoked. This data will be written to `storage` and must be serializable.
+function event.dynamic_subtick_trigger(handler_name, event_name, handler_data)
+	local obj = rendering.draw_line(INVISIBLE_LINE)
+	local rn = script.register_on_object_destroyed(obj)
+	if not storage._event_subtick then storage._event_subtick = {} end
+	storage._event_subtick[rn] = { event_name, handler_name, handler_data }
+	obj.destroy()
+end
+
+event.bind("on_object_destroyed", function(ev)
+	local rn = ev.registration_number
+	local binding = (storage._event_subtick or EMPTY)[rn]
+	if not binding then return end
+	storage._event_subtick[rn] = nil
+	local handler = registered_dynamic_handlers[binding[2]]
+	if handler then handler(binding[1], binding[3]) end
+end)
+
 event.bind(
 	"on_init",
 	function() event.raise("on_startup", { init = true, startup_warnings = {} }) end,
@@ -263,7 +299,17 @@ event.bind(
 event.bind("on_startup", function(reset_data)
 	-- TODO: warn if mods didn't clear dynamic binds before resetting
 	storage._event = {} --[[@as Core.EventStorage ]]
+	storage._event_subtick = {}
 	storage._event_id = 0
+end)
+
+event.bind("on_load", function()
+	if not storage._event then return end
+
+	-- Rebind all game events we were using.
+	for event_name in pairs(storage._event) do
+		bind_any_event(event_name)
+	end
 end)
 
 return event
