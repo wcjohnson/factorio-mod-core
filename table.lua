@@ -51,15 +51,21 @@ function lib.deep_copy(tbl, ignore_metatables)
 	return _copy(tbl)
 end
 
----Shallowly copies `src` into `dest`, returning `dest`.
+---Shallowly copies each given table into `dest`, returning `dest`.
 ---@generic K, V
 ---@param dest table<K, V>
----@param src table<K, V>?
+---@param ... (table<K, V>|nil)[]
 ---@return table<K, V>
-local function assign(dest, src)
-	if not src then return dest end
-	for k, v in pairs(src) do
-		dest[k] = v
+local function assign(dest, ...)
+	local n = select("#", ...)
+	if n == 0 then return dest end
+	for i = 1, n do
+		local src = select(i, ...)
+		if type(src) == "table" then
+			for k, v in pairs(src) do
+				dest[k] = v
+			end
+		end
 	end
 	return dest
 end
@@ -409,5 +415,13 @@ function lib.iter(x)
 			0
 	end
 end
+
+---An empty table enforced via metatable.
+lib.EMPTY = setmetatable({}, { __newindex = function() end })
+
+---An empty table that will crash if anyone tries to write to it.
+lib.EMPTY_STRICT = setmetatable({}, {
+	__newindex = function() error("Attempt to write to EMPTY_STRICT table", 2) end,
+})
 
 return lib
