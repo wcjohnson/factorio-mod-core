@@ -4,7 +4,10 @@
 --transitioning between pickled data (like undo-redo records) and live entities.
 
 local position_lib = require("lib.core.math.pos")
+local tlib = require("lib.core.table")
+
 local pos_get = position_lib.pos_get
+local filter_in_place = tlib.filter_in_place
 
 ---Brief information about an entity's prototype and location in the world.
 ---@class Core.WorldState
@@ -71,6 +74,30 @@ function lib.parse_world_key(key)
 		name = name,
 		key = key,
 	}
+end
+
+---@param surface_index uint
+---@param position MapPosition
+---@param name string
+---@return LuaEntity[]
+function lib.find_matching_raw(surface_index, position, name)
+	local surface = game.get_surface(surface_index)
+	if not surface then return {} end
+	return filter_in_place(
+		surface.find_entities_filtered({ position = position }),
+		function(entity)
+			return entity.name == name
+				or (entity.type == "entity-ghost" and entity.ghost_name == name)
+		end
+	)
+end
+
+---Find all entities matching a given world state. This may return multiple
+---results in the event of non-colliding identically-named stacked entities.
+---@param state Core.WorldState
+---@return LuaEntity[]
+function lib.find_matching(state)
+	return lib.find_matching_raw(state.surface_index, state.position, state.name)
 end
 
 return lib

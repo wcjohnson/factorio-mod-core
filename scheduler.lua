@@ -1,6 +1,6 @@
 ---@diagnostic disable: inject-field
 
-require("lib.core.require-guard")("lib.core.scheduler")
+require("lib.core.require").require_guard("lib.core.scheduler")
 
 local counters = require("lib.core.counters")
 local event = require("lib.core.event")

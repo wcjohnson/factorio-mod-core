@@ -338,10 +338,11 @@ end
 ---@param a T[]
 function lib.irpairs(a) return irnext, a, 0 end
 
----Filter an array in place.
+---Filter an array in place, returning the array.
 ---@generic T
 ---@param A T[]
 ---@param f fun(value: T, index: integer): boolean?
+---@return T[] A The filtered array.
 function lib.filter_in_place(A, f)
 	local j = 1
 	for i = 1, #A do
@@ -353,6 +354,7 @@ function lib.filter_in_place(A, f)
 	for i = #A, j, -1 do
 		A[i] = nil
 	end
+	return A
 end
 
 ---Filter a table in place.

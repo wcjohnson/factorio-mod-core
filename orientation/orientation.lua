@@ -9,6 +9,10 @@ local OrientationContext = oclass.OrientationContext
 
 local lib = {}
 
+---Information given about the orientation of a blueprint when being placed.
+---This matches e.g. the `on_pre_build` event data.
+---@alias Core.BlueprintOrientationData {position: MapPosition, direction: defines.direction, flip_horizontal: boolean, flip_vertical: boolean}
+
 ---Pure orientation data without the associated metaclass. Used when serializing
 ---to contexts like blueprints.
 ---@alias Core.OrientationData [Core.OrientationClass, integer, integer, 0|1]

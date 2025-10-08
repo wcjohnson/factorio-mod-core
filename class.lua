@@ -15,7 +15,12 @@ function lib.class(name, ...)
 		if type(arg) == "table" then
 			tlib.assign(mt, arg)
 		else
-			error("Invalid argument #" .. i .. ": expected table, got " .. type(arg))
+			error(
+				"Invalid argument #"
+					.. i
+					.. ": mixin must be a table, instead got "
+					.. type(arg)
+			)
 		end
 	end
 	mt.classname = name
