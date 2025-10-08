@@ -4,7 +4,7 @@
 -- Green threading/coroutine library for Factorio
 --------------------------------------------------------------------------------
 
-require("lib.core.require-guard")("lib.core.thread")
+require("lib.core.require").require_guard("lib.core.thread")
 
 local class = require("lib.core.class").class
 local counters = require("lib.core.counters")

@@ -4,7 +4,7 @@
 -- Implementation should be more performant, and has support for correct
 -- dynamic event binding as well as subtick event triggers.
 
-local require_guard = require("lib.core.require-guard")
+local require_guard = require("lib.core.require").require_guard
 require_guard("lib.core.event")
 local tlib = require("lib.core.table")
 

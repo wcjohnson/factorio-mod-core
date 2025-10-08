@@ -2,7 +2,7 @@
 
 -- Global auto-incrementing counters stored in game state. Useful for generating unique IDs.
 
-require("lib.core.require-guard")("lib.core.counters")
+require("lib.core.require").require_guard("lib.core.counters")
 
 local event = require("lib.core.event")
 
