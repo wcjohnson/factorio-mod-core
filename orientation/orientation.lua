@@ -1,7 +1,9 @@
 local oclass = require("lib.core.orientation.orientation-class")
 local dihedral = require("lib.core.math.dihedral")
 local class = require("lib.core.class").class
+local pos_lib = require("lib.core.math.pos")
 
+local pos_get = pos_lib.pos_get
 local OC = oclass.OrientationClass
 local OrientationContext = oclass.OrientationContext
 
@@ -124,6 +126,27 @@ end
 function Orientation:impose(entity_or_ghost)
 	entity_or_ghost.direction = self[3] * 4
 	if self.can_mirror then entity_or_ghost.mirroring = (self[4] == 1) end
+end
+
+---Transform an offset in the local space of an entity with this orientation
+---into an offset in world space.
+---@param local_offset MapPosition
+---@return MapPosition
+function Orientation:local_to_world_offset(local_offset)
+	local x, y = pos_get(local_offset)
+	if self[4] == 1 then x = -x end
+	local r = self[3]
+	if r == 0 then
+		return { x, y }
+	elseif r == 1 then
+		return { -y, x }
+	elseif r == 2 then
+		return { -x, -y }
+	elseif r == 3 then
+		return { y, -x }
+	else
+		error("Invalid orientation state")
+	end
 end
 
 ---Map from orientation class to Lua class of Orientation objects.
