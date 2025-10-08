@@ -4,6 +4,7 @@ local class = require("lib.core.class").class
 
 local OC = oclass.OrientationClass
 local OrientationContext = oclass.OrientationContext
+local floor = math.floor
 
 local lib = {}
 
@@ -38,6 +39,7 @@ Orientation.can_mirror = true
 ---Create a new Orientation object representing an entity of the given class
 ---facing true north and unflipped.
 ---@param oc Core.OrientationClass
+---@return Core.Orientation
 function Orientation:new(oc)
 	return setmetatable({ oc, self.dihedral_r_order, 0, 0 }, self)
 end
@@ -172,8 +174,28 @@ function lib.hydrate_orientation(data)
 	local lua_class = oc_to_lua_class[oc]
 	if not lua_class then return nil end
 	local O = lua_class:new(oc)
-	O:from_data(data)
+	O[2] = data[2]
+	O[3] = data[3]
+	O[4] = data[4]
 	return O
+end
+
+---Get the dihedral transformation corresponding to the given blueprint orientation data.
+---@param blueprint_orientation Core.BlueprintOrientationData
+---@return Core.Dihedral
+function lib.get_blueprint_transform(blueprint_orientation)
+	local v_r2 = blueprint_orientation.flip_vertical and 2 or 0
+	local v_s = blueprint_orientation.flip_vertical and 1 or 0
+	local h_s = blueprint_orientation.flip_horizontal and 1 or 0
+	local x, y, z = dihedral.exploded_product(
+		4,
+		floor(blueprint_orientation.direction / 4),
+		h_s,
+		4,
+		v_r2,
+		v_s
+	)
+	return { x, y, z }
 end
 
 return lib
