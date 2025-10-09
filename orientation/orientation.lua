@@ -7,6 +7,9 @@ local pos_get = pos_lib.pos_get
 local OC = oclass.OrientationClass
 local OrientationContext = oclass.OrientationContext
 local floor = math.floor
+local pairs = _G.pairs
+local setmetatable = _G.setmetatable
+local getmetatable = _G.getmetatable
 
 local lib = {}
 
@@ -77,6 +80,13 @@ end
 ---@param context Core.OrientationContext
 ---@return Core.Dihedral
 function Orientation:R(context) return { self.dihedral_r_order, 1, 0 } end
+
+---Transformation corresponding to a 90° counterclockwise rotation
+---@param context Core.OrientationContext
+---@return Core.Dihedral
+function Orientation:Rinv(context)
+	return { self.dihedral_r_order, self.dihedral_r_order - 1, 0 }
+end
 
 ---Transformation corresponding to a horizontal flip.
 ---@param context Core.OrientationContext
@@ -191,7 +201,7 @@ end
 ---Create an Orientation object from a pure data representation.
 ---@param data Core.OrientationData?
 ---@return Core.Orientation?
-function lib.hydrate_orientation(data)
+function lib.from_data(data)
 	if not data then return nil end
 	local oc = data[1]
 	local lua_class = oc_to_lua_class[oc]
