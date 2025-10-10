@@ -23,7 +23,7 @@ local lib = {}
 
 ---An object representing the current orientation state of an entity or ghost.
 ---@class Core.Orientation
-local Orientation = class()
+local Orientation = class("Core.Orientation")
 lib.Orientation = Orientation
 
 ---Order of the rotational element `r` in the dihedral group Dn used for this orientation class.
