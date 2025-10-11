@@ -1,5 +1,5 @@
 --------------------------------------------------------------------------------
--- Connect Relm to dynamic binding and threads through effect handlers.
+-- Relm utility functions and hooks.
 --------------------------------------------------------------------------------
 
 local relm = require("lib.core.relm.relm")
