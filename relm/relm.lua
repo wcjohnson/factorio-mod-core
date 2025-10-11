@@ -9,6 +9,7 @@ local error = _G.error
 local strfind = _G.string.find
 local pairs = _G.pairs
 
+---@class Relm.Lib
 local lib = {}
 
 --------------------------------------------------------------------------------
