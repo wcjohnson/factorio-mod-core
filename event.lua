@@ -230,7 +230,7 @@ function event.dynamic_bind(event_names, handler_name, handler_data)
 		end
 		event_name = bind_any_event(event_name)
 		if not storage._event[event_name] then storage._event[event_name] = {} end
-		storage._event[event_name][id] = { handler_name, handler_data }
+		storage._event[event_name][id] = { event_name, handler_name, handler_data }
 	end
 
 	return id
