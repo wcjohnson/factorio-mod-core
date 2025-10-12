@@ -57,8 +57,6 @@ local script_event_set = {
 	["on_try_shutdown"] = true,
 }
 
-local is_top_of_control = true
-
 ---@type {[int|string]: fun(...)[]}
 local static_handlers = {}
 
@@ -172,6 +170,11 @@ local event = {}
 ---@param handler fun(...) The handler function.
 ---@param first boolean? If true, the handler will be called before other handlers for the event. Use with care.
 function event.bind(event_names, handler, first)
+	if game then
+		error(
+			"`event.bind` must be called only at the top of the control phase. use `event.dynamic_bind` instead for late or dynamic event binding."
+		)
+	end
 	for _, event_name in tlib.iter(event_names) do
 		---@cast event_name Core.EventName
 		event_name = bind_any_event(event_name)
