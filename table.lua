@@ -284,13 +284,37 @@ function lib.groups(A, key)
 		1
 end
 
+---Group an array of objects by running a key-generating function on each object.
+---Objects with the same key value will be collected into an array under that key.
+---Objects for which the key function returns `nil` will be skipped.
+---@generic T
+---@param A T[]
+---@param key_fn fun(value: T): string|number The key-generating function.
+---@return table<string|number, T[]> #A table mapping from key values to arrays of objects with that key value.
+function lib.group_by(A, key_fn)
+	local result = {}
+	for i = 1, #A do
+		local obj = A[i]
+		local k = key_fn(obj)
+		if k ~= nil then
+			local group = result[k]
+			if group == nil then
+				group = {}
+				result[k] = group
+			end
+			group[#group + 1] = obj
+		end
+	end
+	return result
+end
+
 ---Given an array of objects pre-sorted on a given key, return an array
 ---of arrays of those objects grouped by the given key.
 ---@generic T, K
 ---@param A T[] The array of objects.
 ---@param key K The key to group by.
 ---@return T[][] #An array of arrays, where each sub-array contains objects with the same key.
-function lib.group_by(A, key)
+function lib.sorted_group_by(A, key)
 	local result = {}
 	local i = 1
 	while i <= #A do
