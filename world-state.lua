@@ -16,6 +16,13 @@ local filter_in_place = tlib.filter_in_place
 ---@field public name string The prototype name of the entity.
 ---@field public key Core.WorldKey World key for this state
 
+---Partial world state with optional fields.
+---@class Core.PartialWorldState
+---@field public position? MapPosition The position of the entity.
+---@field public surface_index? uint The surface index of the entity.
+---@field public name? string The prototype name of the entity.
+---@field public key Core.WorldKey World key for this state
+
 ---String representation of a world state, suitable for use as a hash key.
 ---@alias Core.WorldKey string
 
