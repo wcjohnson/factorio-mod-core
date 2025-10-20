@@ -7,6 +7,8 @@ local type = _G.type
 local pairs = _G.pairs
 local select = _G.select
 local random = math.random
+local setmetatable = _G.setmetatable
+local getmetatable = _G.getmetatable
 
 ---An empty table enforced via metamethod.
 local empty = setmetatable({}, { __newindex = function() end })
