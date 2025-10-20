@@ -192,6 +192,7 @@ local static_by_type = {
 	["rocket-silo"] = OrientationClass.OC_0,
 	["cargo-landing-pad"] = OrientationClass.OC_0,
 	["cargo-bay"] = OrientationClass.OC_0,
+	["assembling-machine"] = OrientationClass.OC_048CM_latent,
 	-- Unsupported rail entities
 	["rail-signal"] = OrientationClass.OC_Unsupported,
 	["rail-chain-signal"] = OrientationClass.OC_Unsupported,
@@ -242,8 +243,6 @@ local static_by_name = {
 	-- AMs with always-on fluidboxes
 	["chemical-plant"] = OrientationClass.OC_048CM_RF,
 	["oil-refinery"] = OrientationClass.OC_048CM_RF,
-	-- AMs with always-off fluidboxes
-	["centrifuge"] = OrientationClass.OC_0,
 }
 
 ---If a prototype name has a statically determined orientation class, return it.
@@ -302,9 +301,19 @@ lib.get_dynamic_orientation_class_for_entity =
 ---@return Core.OrientationClass
 function lib.get_orientation_class_for_entity(entity)
 	if not entity or not entity.valid then return OrientationClass.OC_Unknown end
-	return get_static_orientation_class_for_type(get_actual_type(entity))
+	return get_dynamic_orientation_class_for_entity(entity)
 		or get_static_orientation_class_for_name(get_actual_name(entity))
-		or get_dynamic_orientation_class_for_entity(entity)
+		or get_static_orientation_class_for_type(get_actual_type(entity))
+		or OrientationClass.OC_Unknown
+end
+
+---Get the orientation class for a blueprint entity.
+---@param name string Prototype name
+---@param type string Prototype type-name
+---@return Core.OrientationClass
+function lib.get_orientation_class_by_name_and_type(name, type)
+	return get_static_orientation_class_for_name(name)
+		or get_static_orientation_class_for_type(type)
 		or OrientationClass.OC_Unknown
 end
 
