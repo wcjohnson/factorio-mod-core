@@ -2,6 +2,12 @@
 -- This includes their possible directions and how they transform under
 -- rotation and flipping.
 
+local dihedral = require("lib.core.math.dihedral")
+local dih_encode = dihedral.encode
+local dih_decode = dihedral.decode
+local dih_product = dihedral.product
+local dih_power = dihedral.power
+
 local lib = {}
 
 ---An entity's orientation class specifies which orientations it can occupy
@@ -110,6 +116,216 @@ local OrientationClass = {
 	["OC_02468ACE_rf"] = 15,
 }
 lib.OrientationClass = OrientationClass
+
+---Properties of an orientation class.
+---@class Core.OrientationClass.Properties
+---@field public dihedral_r_order uint The order of the rotational element in the dihedral group representing this class.
+---@field public can_mirror boolean Whether this class has a mirroring bit.
+---@field public blueprint_transforms? Core.Dihedral[] Precomputed array of dihedral transformations for blueprints, indexed by D8-element index. !!!THIS IS ZERO-INDEXED!!!
+---@field public R_hand Core.Dihedral|nil The dihedral transformation corresponding to a clockwise rotation while held in the cursor, if any.
+---@field public Rinv_hand Core.Dihedral|nil The dihedral transformation corresponding to a counterclockwise rotation while held in the cursor, if any.
+---@field public H_hand Core.Dihedral|nil The dihedral transformation corresponding to a horizontal flip while held in the cursor, if any.
+---@field public V_hand Core.Dihedral|nil The dihedral transformation corresponding to a vertical flip while held in the cursor, if any.
+---@field public R_world Core.Dihedral|nil The dihedral transformation corresponding to a clockwise rotation while placed in the world, if any.
+---@field public Rinv_world Core.Dihedral|nil The dihedral transformation corresponding to a counterclockwise rotation while placed in the world, if any.
+---@field public H_world Core.Dihedral|nil The dihedral transformation corresponding to a horizontal flip while placed in the world, if any.
+---@field public V_world Core.Dihedral|nil The dihedral transformation corresponding to a vertical flip while placed in the world, if any.
+---@field public R_blueprint Core.Dihedral|nil The dihedral transformation corresponding to a clockwise rotation while in a blueprint, if any.
+---@field public Rinv_blueprint Core.Dihedral|nil The dihedral transformation corresponding to a counterclockwise rotation while in a blueprint, if any.
+---@field public H_blueprint Core.Dihedral|nil The dihedral transformation corresponding to a horizontal flip while in a blueprint, if any.
+---@field public V_blueprint Core.Dihedral|nil The dihedral transformation corresponding to a vertical flip while in a blueprint, if any.
+
+---@type Core.OrientationClass.Properties
+local zero = {
+	dihedral_r_order = 0,
+	can_mirror = false,
+	R_hand = nil,
+	Rinv_hand = nil,
+	H_hand = nil,
+	V_hand = nil,
+	R_world = nil,
+	Rinv_world = nil,
+	H_world = nil,
+	V_world = nil,
+}
+
+---Properties of each individual orientation class.
+---@type table<Core.OrientationClass, Core.OrientationClass.Properties>
+lib.class_properties = {
+	[OrientationClass.OC_Unknown] = zero,
+	[OrientationClass.OC_Unsupported] = zero,
+	[OrientationClass.OC_0] = zero,
+	[OrientationClass.OC_04_r] = {
+		dihedral_r_order = 1,
+		can_mirror = false,
+		R_hand = dih_encode(1, 0, 1),
+		Rinv_hand = dih_encode(1, 0, 1),
+		H_hand = nil,
+		V_hand = nil,
+		R_world = nil,
+		Rinv_world = nil,
+		H_world = nil,
+		V_world = nil,
+	},
+	[OrientationClass.OC_04_R] = {
+		dihedral_r_order = 1,
+		can_mirror = false,
+		R_hand = dih_encode(1, 0, 1),
+		Rinv_hand = dih_encode(1, 0, 1),
+		H_hand = nil,
+		V_hand = nil,
+		R_world = dih_encode(1, 0, 1),
+		Rinv_world = dih_encode(1, 0, 1),
+		H_world = nil,
+		V_world = nil,
+	},
+	[OrientationClass.OC_04_RF] = {
+		dihedral_r_order = 1,
+		can_mirror = false,
+		R_hand = dih_encode(1, 0, 1),
+		Rinv_hand = dih_encode(1, 0, 1),
+		H_hand = dih_encode(1, 0, 1),
+		V_hand = dih_encode(1, 0, 1),
+		R_world = dih_encode(1, 0, 1),
+		Rinv_world = dih_encode(1, 0, 1),
+		H_world = dih_encode(1, 0, 1),
+		V_world = dih_encode(1, 0, 1),
+	},
+	[OrientationClass.OC_048C_R] = {
+		dihedral_r_order = 4,
+		can_mirror = false,
+		R_hand = dih_encode(4, 1, 0),
+		Rinv_hand = dih_encode(4, 3, 0),
+		H_hand = nil,
+		V_hand = nil,
+		R_world = dih_encode(4, 1, 0),
+		Rinv_world = dih_encode(4, 3, 0),
+		H_world = nil,
+		V_world = nil,
+	},
+	[OrientationClass.OC_048C_rs] = {
+		dihedral_r_order = 4,
+		can_mirror = false,
+		R_hand = dih_encode(4, 1, 0),
+		Rinv_hand = dih_encode(4, 3, 0),
+		H_hand = dih_encode(4, 0, 1),
+		V_hand = dih_encode(4, 2, 1),
+		R_world = nil,
+		Rinv_world = nil,
+		H_world = nil,
+		V_world = nil,
+	},
+	[OrientationClass.OC_048C_rS] = {
+		dihedral_r_order = 4,
+		can_mirror = false,
+		R_hand = dih_encode(4, 1, 0),
+		Rinv_hand = dih_encode(4, 3, 0),
+		H_hand = dih_encode(4, 0, 1),
+		V_hand = dih_encode(4, 2, 1),
+		R_world = nil,
+		Rinv_world = nil,
+		H_world = dih_encode(4, 0, 1),
+		V_world = dih_encode(4, 2, 1),
+	},
+	[OrientationClass.OC_048C_RS] = {
+		dihedral_r_order = 4,
+		can_mirror = false,
+		R_hand = dih_encode(4, 1, 0),
+		Rinv_hand = dih_encode(4, 3, 0),
+		H_hand = dih_encode(4, 0, 1),
+		V_hand = dih_encode(4, 2, 1),
+		R_world = dih_encode(4, 1, 0),
+		Rinv_world = dih_encode(4, 3, 0),
+		H_world = dih_encode(4, 0, 1),
+		V_world = dih_encode(4, 2, 1),
+	},
+	-- Rotation while in world = r^2
+	[OrientationClass.OC_048C_RSc] = {
+		dihedral_r_order = 4,
+		can_mirror = false,
+		R_hand = dih_encode(4, 1, 0),
+		Rinv_hand = dih_encode(4, 3, 0),
+		H_hand = dih_encode(4, 0, 1),
+		V_hand = dih_encode(4, 2, 1),
+		R_world = dih_encode(4, 2, 0),
+		Rinv_world = dih_encode(4, 2, 0),
+		H_world = dih_encode(4, 0, 1),
+		V_world = dih_encode(4, 2, 1),
+	},
+	[OrientationClass.OC_048CM_RF] = {
+		dihedral_r_order = 4,
+		can_mirror = true,
+		R_hand = dih_encode(4, 1, 0),
+		Rinv_hand = dih_encode(4, 3, 0),
+		H_hand = dih_encode(4, 0, 1),
+		V_hand = dih_encode(4, 2, 1),
+		R_world = dih_encode(4, 1, 0),
+		Rinv_world = dih_encode(4, 3, 0),
+		H_world = dih_encode(4, 0, 1),
+		V_world = dih_encode(4, 2, 1),
+	},
+	---While held: R = r, H = s, V = r^2*s
+	---While in world:  R = r^2, H = s, V = r^2*s
+	[OrientationClass.OC_048CM_RFc] = {
+		dihedral_r_order = 4,
+		can_mirror = true,
+		R_hand = dih_encode(4, 1, 0),
+		Rinv_hand = dih_encode(4, 3, 0),
+		H_hand = dih_encode(4, 0, 1),
+		V_hand = dih_encode(4, 2, 1),
+		R_world = dih_encode(4, 2, 0),
+		Rinv_world = dih_encode(4, 2, 0),
+		H_world = dih_encode(4, 0, 1),
+		V_world = dih_encode(4, 2, 1),
+	},
+	[OrientationClass.OC_048CM_latent] = {
+		dihedral_r_order = 4,
+		can_mirror = true,
+		R_hand = nil,
+		Rinv_hand = nil,
+		H_hand = nil,
+		V_hand = nil,
+		R_world = nil,
+		Rinv_world = nil,
+		H_world = nil,
+		V_world = nil,
+		R_blueprint = dih_encode(4, 1, 0),
+		Rinv_blueprint = dih_encode(4, 3, 0),
+		H_blueprint = dih_encode(4, 0, 1),
+		V_blueprint = dih_encode(4, 2, 1),
+	},
+	[OrientationClass.OC_02468ACE_rf] = {
+		dihedral_r_order = 8,
+		can_mirror = false,
+		R_hand = dih_encode(8, 1, 0),
+		Rinv_hand = dih_encode(8, 7, 0),
+		H_hand = dih_encode(8, 0, 1),
+		V_hand = dih_encode(8, 4, 1),
+		R_world = nil,
+		Rinv_world = nil,
+		H_world = nil,
+		V_world = nil,
+	},
+}
+
+-- Precompute blueprint transforms for each orientation class
+for _, props in pairs(lib.class_properties) do
+	props.blueprint_transforms = {}
+	local R = props.R_blueprint
+		or props.R_hand
+		or dih_encode(props.dihedral_r_order, 0, 0)
+	local S = props.H_blueprint
+		or props.H_hand
+		or dih_encode(props.dihedral_r_order, 0, 0)
+	for i = 0, 7 do
+		local _, r, s = dihedral.elt(8, i)
+		if s == 0 then
+			props.blueprint_transforms[i] = dih_power(R, r)
+		else
+			props.blueprint_transforms[i] = dih_product(dih_power(R, r), S)
+		end
+	end
+end
 
 ---The context in which an entity orientation is being changed. Entities may
 ---behave differently when being held in cursor versus placed in the world.
@@ -307,14 +523,18 @@ function lib.get_orientation_class_for_entity(entity)
 		or OrientationClass.OC_Unknown
 end
 
----Get the orientation class for a blueprint entity.
+---Get the orientation class for an entity only by its prototype name.
+---This is needed for e.g. blueprint or serialized entities.
 ---@param name string Prototype name
----@param type string Prototype type-name
 ---@return Core.OrientationClass
-function lib.get_orientation_class_by_name_and_type(name, type)
-	return get_static_orientation_class_for_name(name)
-		or get_static_orientation_class_for_type(type)
-		or OrientationClass.OC_Unknown
+function lib.get_orientation_class_by_name(name)
+	local OC = get_static_orientation_class_for_name(name)
+	if OC then return OC end
+	local eproto = prototypes.entity[name]
+	if not eproto then return OrientationClass.OC_Unknown end
+	OC = get_static_orientation_class_for_type(eproto.type)
+	if OC then return OC end
+	return OrientationClass.OC_Unknown
 end
 
 return lib

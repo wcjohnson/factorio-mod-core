@@ -1,15 +1,18 @@
 local oclass = require("lib.core.orientation.orientation-class")
 local dihedral = require("lib.core.math.dihedral")
-local class = require("lib.core.class").class
 local pos_lib = require("lib.core.math.pos")
 
 local pos_get = pos_lib.pos_get
 local OC = oclass.OrientationClass
 local OrientationContext = oclass.OrientationContext
+local props = oclass.class_properties
 local floor = math.floor
 local pairs = _G.pairs
-local setmetatable = _G.setmetatable
-local getmetatable = _G.getmetatable
+local bextract = bit32.extract
+local breplace = bit32.replace
+local dih_encode = dihedral.encode
+local dih_decode = dihedral.decode
+local dih_product = dihedral.product
 
 local lib = {}
 
@@ -17,141 +20,291 @@ local lib = {}
 ---This matches e.g. the `on_pre_build` event data.
 ---@alias Core.BlueprintOrientationData {position: MapPosition, direction: defines.direction, flip_horizontal: boolean, flip_vertical: boolean}
 
----Pure orientation data without the associated metaclass. Used when serializing
----to contexts like blueprints.
----@alias Core.OrientationData [Core.OrientationClass, integer, integer, 0|1]
+---Bitwise encoded orientation. The lower 17 bits encode the dihedral
+---group element for this orientation; the next 8 bits encode the orientation
+---class number.
+---@alias Core.Orientation int32
 
----An object representing the current orientation state of an entity or ghost.
----@class Core.Orientation
-local Orientation = class("Core.Orientation")
-lib.Orientation = Orientation
-
----Order of the rotational element `r` in the dihedral group Dn used for this orientation class.
-Orientation.dihedral_r_order = 4
-
----Entity implements flips only as 180° rotations.
-Orientation.rotational_flips = false
-
----Entity can be rotated in world
-Orientation.can_rotate_in_world = true
-
----Entity can be flipped in world
-Orientation.can_flip_in_world = true
-
----Entity can mirror
-Orientation.can_mirror = true
-
----Create a new Orientation object representing an entity of the given class
----facing true north and unflipped.
----@param oc Core.OrientationClass
+---@param class Core.OrientationClass
+---@param dih Core.Dihedral
 ---@return Core.Orientation
-function Orientation:new(oc)
-	return setmetatable({ oc, self.dihedral_r_order, 0, 0 }, self)
+local function encode(class, dih)
+	local x = breplace(0, dih, 0, 17) --[[@as int]]
+	return breplace(x, class, 17, 8) --[[@as Core.Orientation]]
 end
 
----Clone an Orientation object.
+---@param class Core.OrientationClass
+---@param order int32
+---@param r int32
+---@param s 0|1
 ---@return Core.Orientation
-function Orientation:clone()
-	-- Shallow copy is sufficient
-	local clone = {}
-	for k, v in pairs(self) do
-		clone[k] = v
+local function encode_wide(class, order, r, s)
+	return encode(class, dih_encode(order, r, s))
+end
+
+---@param orientation Core.Orientation
+---@return Core.OrientationClass
+---@return Core.Dihedral
+local function decode(orientation)
+	local dih = bextract(orientation, 0, 17)
+	local class = bextract(orientation, 17, 8)
+	return class, dih
+end
+
+---@param orientation Core.Orientation
+---@return Core.OrientationClass
+---@return int32
+---@return int32
+---@return 0|1
+local function decode_wide(orientation)
+	local class, dih = decode(orientation)
+	local order, r, s = dih_decode(dih)
+	return class, order, r, s
+end
+
+---Get direction and mirroring values from an exploded orientation.
+---@param class Core.OrientationClass
+---@param order int32
+---@param r int32
+---@param s 0|1
+---@return defines.direction
+---@return boolean?
+local function get_dm_wide(class, order, r, s)
+	local mirroring = nil
+	if props[class].can_mirror then mirroring = (s == 1) end
+	if order == 0 then
+		return defines.direction.north, mirroring
+	elseif order == 1 then
+		return (s == 0 and defines.direction.north or defines.direction.east),
+			mirroring
+	elseif order == 4 then
+		return (
+			r * 4 --[[@as defines.direction]]
+		),
+			mirroring
+	elseif order == 8 then
+		return (
+			r * 2 --[[@as defines.direction]]
+		),
+			mirroring
 	end
-	return setmetatable(clone, getmetatable(self))
+	return defines.direction.north, mirroring
+end
+
+---Create an empty orientation
+---@param class Core.OrientationClass
+---@return Core.Orientation
+function lib.create(class)
+	return encode_wide(class, props[class].dihedral_r_order, 0, 0)
 end
 
 ---Get the `OrientationClass` of this orientation.
+---@param orientation Core.Orientation
 ---@return Core.OrientationClass
-function Orientation:get_class() return self[1] end
+function lib.get_class(orientation) return bextract(orientation, 17, 8) end
 
----Convert to a pure-data representation.
----@return Core.OrientationData
-function Orientation:to_data() return { self[1], self[2], self[3], self[4] } end
+---Get the Factorio direction corresponding to this orientation.
+---@param orientation Core.Orientation
+---@return defines.direction
+local function get_direction(orientation)
+	local dir = get_dm_wide(decode_wide(orientation))
+	return dir
+end
+lib.get_direction = get_direction
 
----Equality of orientations.
+---Create an Orientation from (class, direction, mirroring) data
+---@param oc Core.OrientationClass
+---@param direction defines.direction
+---@param mirroring boolean?
+function lib.from_cdm(oc, direction, mirroring)
+	local order = props[oc].dihedral_r_order
+	local r, s = 0, 0
+	if order == 0 then
+		-- No-op
+	elseif order == 1 then
+		s = direction ~= defines.direction.north and 1 or 0
+	elseif order == 4 then
+		r = math.floor(direction / 4) % 4
+		if props[oc].can_mirror then s = mirroring and 1 or 0 end
+	elseif order == 8 then
+		r = math.floor(direction / 2) % 8
+		if props[oc].can_mirror then s = mirroring and 1 or 0 end
+	end
+	return encode_wide(oc, order, r, s)
+end
+
+---Convert an orientation to (class, direction, mirroring) data
+---@param orientation Core.Orientation
+---@return Core.OrientationClass class
+---@return defines.direction direction
+---@return boolean? mirroring
+function lib.to_cdm(orientation)
+	local oc, order, r, s = decode_wide(orientation)
+	local direction, mirroring = get_dm_wide(oc, order, r, s)
+	return oc, direction, mirroring
+end
+
+---Compare two orientations for equality. This is strict (class must match
+---as well as dihedral element)
 ---@param a Core.Orientation
 ---@param b Core.Orientation
-function Orientation.__eq(a, b)
-	if a[1] ~= b[1] then return false end
-	return dihedral.exploded_eq(a[2], a[3], a[4], b[2], b[3], b[4])
+---@return boolean
+function lib.eq(a, b) return a == b end
+
+---Compare two orientations for loose equality. This is true if the direction
+---and mirroring (if supported by both) is the same between them, regardless
+---of class.
+---@param a Core.Orientation|nil
+---@param b Core.Orientation|nil
+---@return boolean
+function lib.loose_eq(a, b)
+	if a == b then return true end
+	if a == nil or b == nil then return false end
+	local ad, am = get_dm_wide(decode_wide(a))
+	local bd, bm = get_dm_wide(decode_wide(b))
+	if ad ~= bd then return false end
+	if am ~= nil and bm ~= nil then
+		if am ~= bm then return false end
+	end
+	return true
 end
 
----Transformation corresponding to a 90° clockwise rotation
+---Get a transform corresponding to rotating an entity with the given
+---orientation clockwise in a given context.
+---If `nil`, the operation cannot be performed in that context.
+---@param orientation Core.Orientation
 ---@param context Core.OrientationContext
----@return Core.Dihedral
-function Orientation:R(context) return { self.dihedral_r_order, 1, 0 } end
-
----Transformation corresponding to a 90° counterclockwise rotation
----@param context Core.OrientationContext
----@return Core.Dihedral
-function Orientation:Rinv(context)
-	return { self.dihedral_r_order, self.dihedral_r_order - 1, 0 }
-end
-
----Transformation corresponding to a horizontal flip.
----@param context Core.OrientationContext
----@return Core.Dihedral
-function Orientation:H(context) return { self.dihedral_r_order, 0, 1 } end
-
----Transformation corresponding to a vertical flip.
----@param context Core.OrientationContext
----@return Core.Dihedral
-function Orientation:V(context)
-	return { self.dihedral_r_order, math.floor(self.dihedral_r_order / 2), 1 }
-end
-
----Appply a dihedral transform to this orientation in-place.
----The transform should be `self:R(context)`, `self:H(context)`, `self:V(context)`, or a product thereof.
----@param transform Core.Dihedral
-function Orientation:apply(transform)
-	self[2], self[3], self[4] = dihedral.exploded_product(
-		self[2],
-		self[3],
-		self[4],
-		transform[1],
-		transform[2],
-		transform[3]
-	)
-end
-
----Apply a transform from the group D8 to this orientation in-place.
----The transform needn't have come from R,H,V. It can be assumed to
----come from the `Blueprint` context.
----(All orientations must implement this because of blueprints, which have
----full D8 transform capabilities.)
----@param transform Core.Dihedral
-function Orientation:apply_blueprint_transform(transform)
-	return self:apply(transform)
-end
-
----Extract the orientation of an entity or ghost into `self`. The orientation class
----of the given entity must be known in advance to match `self`.
----@param entity_or_ghost LuaEntity A *valid* entity or ghost of this orientation's class
-function Orientation:extract(entity_or_ghost)
-	self[3] = math.floor(entity_or_ghost.direction / 4)
-	if self.can_mirror then
-		self[4] = entity_or_ghost.mirroring and 1 or 0
+---@return Core.Dihedral|nil
+function lib.R(orientation, context)
+	local pr = props[orientation[1]]
+	if context == OrientationContext.Blueprint then
+		return pr.R_blueprint or pr.R_hand or pr.R_world or dih_encode(4, 1, 0)
+	elseif context == OrientationContext.Cursor then
+		return pr.R_hand
+	elseif context == OrientationContext.World then
+		return pr.R_world
 	else
-		self[4] = 0
+		return nil
 	end
 end
 
----Impose the orientation represented by `self` onto the given entity or ghost.
----The orientation class of the given entity must be known in advance to match `self`.
----@param entity_or_ghost LuaEntity A *valid* entity or ghost of this orientation's class
-function Orientation:impose(entity_or_ghost)
-	entity_or_ghost.direction = self[3] * 4
-	if self.can_mirror then entity_or_ghost.mirroring = (self[4] == 1) end
+---Get a transform corresponding to rotating an entity with the given
+---orientation CCW in a given context.
+---If `nil`, the operation cannot be performed in that context.
+---@param orientation Core.Orientation
+---@param context Core.OrientationContext
+---@return Core.Dihedral|nil
+function lib.Rinv(orientation, context)
+	local pr = props[orientation[1]]
+	if context == OrientationContext.Blueprint then
+		return pr.Rinv_blueprint
+			or pr.Rinv_hand
+			or pr.Rinv_world
+			or dih_encode(4, 3, 0)
+	elseif context == OrientationContext.Cursor then
+		return pr.Rinv_hand
+	elseif context == OrientationContext.World then
+		return pr.Rinv_world
+	else
+		return nil
+	end
 end
 
----Transform an offset in the local space of an entity with this orientation
----into an offset in world space.
----@param local_offset MapPosition
+---Get a transform corresponding to H-flipping an entity with the given
+---orientation in a given context.
+---If `nil`, the operation cannot be performed in that context.
+---@param orientation Core.Orientation
+---@param context Core.OrientationContext
+---@return Core.Dihedral|nil
+function lib.H(orientation, context)
+	local pr = props[orientation[1]]
+	if context == OrientationContext.Blueprint then
+		return pr.H_blueprint or pr.H_hand or pr.H_world or dih_encode(4, 0, 1)
+	elseif context == OrientationContext.Cursor then
+		return pr.H_hand
+	elseif context == OrientationContext.World then
+		return pr.H_world
+	else
+		return nil
+	end
+end
+
+---Get a transform corresponding to V-flipping an entity with the given
+---orientation in a given context.
+---If `nil`, the operation cannot be performed in that context.
+---@param orientation Core.Orientation
+---@param context Core.OrientationContext
+---@return Core.Dihedral|nil
+function lib.V(orientation, context)
+	local pr = props[orientation[1]]
+	if context == OrientationContext.Blueprint then
+		return pr.V_blueprint or pr.V_hand or pr.V_world or dih_encode(4, 2, 1)
+	elseif context == OrientationContext.Cursor then
+		return pr.V_hand
+	elseif context == OrientationContext.World then
+		return pr.V_world
+	else
+		return nil
+	end
+end
+
+---Appply a dihedral transform to this orientation, returning the new one.
+---The transform should be `self:R(context)`, `self:H(context)`, `self:V(context)`, or a product thereof.
+---@param O Core.Orientation
+---@param transform Core.Dihedral
+---@return Core.Orientation
+function lib.apply(O, transform)
+	local class, dih = decode(O)
+	return encode(class, dih_product(dih, transform))
+end
+
+---Apply a blueprint D8 transform to this orientation
+---@param O Core.Orientation Orientation to transform.
+---@param index 0|1|2|3|4|5|6|7 The index of the D8 transform to apply.
+---@return Core.Orientation
+function lib.apply_blueprint(O, index)
+	local class, dih = decode(O)
+	local transform = props[class].blueprint_transforms[index]
+	return encode(class, dih_product(dih, transform))
+end
+
+---Extract the orientation of an entity or ghost.
+---@param entity LuaEntity A *valid* entity or ghost
+---@return Core.Orientation?
+function lib.extract(entity)
+	local oc = oclass.get_orientation_class_for_entity(entity)
+	if not oc then return nil end
+	return lib.from_cdm(oc, entity.direction, entity.mirroring)
+end
+
+---Extract the orientation of a blueprint entity.
+---@param bp_entity BlueprintEntity
+---@return Core.Orientation
+function lib.extract_bp(bp_entity)
+	local oc = oclass.get_orientation_class_by_name(bp_entity.name)
+	if not oc then return encode_wide(OC.OC_Unknown, 0, 0, 0) end
+	return lib.from_cdm(oc, bp_entity.direction, bp_entity.mirror)
+end
+
+---Impose the orientation on the given entity or ghost by setting its direction
+---and mirroring.
+---@param orientation Core.Orientation
+---@param entity LuaEntity A *valid* entity or ghost of this orientation's class
+function lib.impose(orientation, entity)
+	local direction, mirroring = get_dm_wide(decode_wide(orientation))
+	entity.direction = direction
+	if mirroring ~= nil then entity.mirroring = mirroring end
+end
+
+---Transform a vector from a null orientation (north = -Y, east = +X) to this orientation.
+---@param orientation Core.Orientation
+---@param vec MapPosition
 ---@return MapPosition
-function Orientation:local_to_world_offset(local_offset)
-	local x, y = pos_get(local_offset)
-	if self[4] == 1 then x = -x end
-	local r = self[3]
+function lib.transform_vector(orientation, vec)
+	-- TODO: this is wrong. consider group order and mirroring property
+	local _, _, r, s = decode_wide(orientation)
+	local x, y = pos_get(vec)
+	if s == 1 then x = -x end
 	if r == 0 then
 		return { x, y }
 	elseif r == 1 then
@@ -165,62 +318,14 @@ function Orientation:local_to_world_offset(local_offset)
 	end
 end
 
----Map from orientation class to Lua class of Orientation objects.
----@type table<Core.OrientationClass, table>
-local oc_to_lua_class = {
-	[OC.OC_Unknown] = Orientation,
-	[OC.OC_Unsupported] = Orientation,
-	[OC.OC_0] = Orientation,
-	[OC.OC_04_r] = Orientation,
-	[OC.OC_04_R] = Orientation,
-	[OC.OC_04_RF] = Orientation,
-	[OC.OC_048C_R] = Orientation,
-	[OC.OC_048C_rs] = Orientation,
-	[OC.OC_048C_rS] = Orientation,
-	[OC.OC_048C_RS] = Orientation,
-	[OC.OC_048C_RSc] = Orientation,
-	[OC.OC_048CM_RF] = Orientation,
-	[OC.OC_048CM_RFc] = Orientation,
-	[OC.OC_048CM_latent] = Orientation,
-	[OC.OC_02468ACE_rf] = Orientation,
-}
-
----Create an Orientation object representing the current orientation of
----the given entity or ghost.
----@param entity LuaEntity
----@return Core.Orientation?
-function lib.extract_orientation(entity)
-	local oc = oclass.get_orientation_class_for_entity(entity)
-	if not oc then return nil end
-	local O = oc_to_lua_class[oc]:new(oc)
-	if not O then return nil end
-	O:extract(entity)
-	return O
-end
-
----Create an Orientation object from a pure data representation.
----@param data Core.OrientationData?
----@return Core.Orientation?
-function lib.from_data(data)
-	if not data then return nil end
-	local oc = data[1]
-	local lua_class = oc_to_lua_class[oc]
-	if not lua_class then return nil end
-	local O = lua_class:new(oc)
-	O[2] = data[2]
-	O[3] = data[3]
-	O[4] = data[4]
-	return O
-end
-
 ---Get the dihedral transformation corresponding to the given blueprint orientation data.
 ---@param blueprint_orientation Core.BlueprintOrientationData
----@return Core.Dihedral
-function lib.get_blueprint_transform(blueprint_orientation)
+---@return 0|1|2|3|4|5|6|7 i Index of the transform in the D8 dihedral group.
+function lib.get_blueprint_transform_index(blueprint_orientation)
 	local v_r2 = blueprint_orientation.flip_vertical and 2 or 0
 	local v_s = blueprint_orientation.flip_vertical and 1 or 0
 	local h_s = blueprint_orientation.flip_horizontal and 1 or 0
-	local x, y, z = dihedral.exploded_product(
+	local order, r, s = dihedral.exploded_product(
 		4,
 		floor(blueprint_orientation.direction / 4),
 		h_s,
@@ -228,7 +333,20 @@ function lib.get_blueprint_transform(blueprint_orientation)
 		v_r2,
 		v_s
 	)
-	return { x, y, z }
+	return dihedral.index(order, r, s)
+end
+
+---Stringify an orientation for debugging.
+---@param orientation Core.Orientation
+---@return string
+function lib.stringify(orientation)
+	local oc, direction, mirroring = lib.to_cdm(orientation)
+	return string.format(
+		"Orientation(%s, dir=%d, mirroring=%s)",
+		OC[oc] or "!!UNKNOWN CLASS!!",
+		direction,
+		tostring(mirroring)
+	)
 end
 
 return lib
