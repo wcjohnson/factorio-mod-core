@@ -342,10 +342,10 @@ end
 function lib.stringify(orientation)
 	local oc, direction, mirroring = lib.to_cdm(orientation)
 	return string.format(
-		"Orientation(%s, dir=%d, mirroring=%s)",
-		OC[oc] or "!!UNKNOWN CLASS!!",
+		"O(%s,%d%s)",
+		OC[oc] or "!!UNKNOWN!!",
 		direction,
-		tostring(mirroring)
+		mirroring ~= nil and (mirroring and "M" or "") or ""
 	)
 end
 
