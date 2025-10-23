@@ -1392,8 +1392,9 @@ end
 
 -- Restore transient component states on load.
 event.bind("on_load", function()
-	---@type table<int,Relm.Internal.Root>
-	local roots = storage._relm.roots
+	local relm_storage = storage._relm
+	if not relm_storage then return end
+	local roots = relm_storage.roots
 	for _, root in pairs(roots) do
 		vhydrate(
 			root.vtree_root,
@@ -1410,7 +1411,9 @@ end)
 
 -- Destroy all roots on shutdown.
 event.bind("on_shutdown", function()
-	local roots = storage._relm.roots
+	local relm_storage = storage._relm
+	if not relm_storage then return end
+	local roots = relm_storage.roots
 	for id, _ in pairs(roots) do
 		lib.root_destroy(id)
 	end
@@ -1522,7 +1525,7 @@ end
 function lib.root_destroy(id)
 	if not id then return end
 	local relm_state = storage._relm
-	---@type Relm.Internal.Root?
+	if not relm_state then return end
 	local root = relm_state.roots[id]
 	if not root then return end
 	enter_side_effect_barrier()
@@ -1567,8 +1570,9 @@ end
 ---using it. Do not use this to paint windows.
 ---@param handler fun(handle: Relm.Handle, root_id: Relm.RootId, element: LuaGuiElement?, player_index: uint)
 function lib.root_foreach(handler)
-	---@type table<int, Relm.Internal.Root>
-	local roots = storage._relm.roots
+	local relm_storage = storage._relm
+	if not relm_storage then return end
+	local roots = relm_storage.roots
 	for _, root in pairs(roots) do
 		handler(
 			root.vtree_root --[[@as Relm.Handle]],
