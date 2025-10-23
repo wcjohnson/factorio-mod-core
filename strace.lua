@@ -62,7 +62,11 @@ local handler = nil
 
 local function unwind_fns(car, ...)
 	if type(car) == "function" then car = car() end
-	return car, ...
+	if select("#", ...) == 0 then
+		return car
+	else
+		return car, unwind_fns(...)
+	end
 end
 
 ---Split off the first key-value pair from an strace message, returning the
