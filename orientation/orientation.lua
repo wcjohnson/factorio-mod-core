@@ -13,6 +13,7 @@ local breplace = bit32.replace
 local dih_encode = dihedral.encode
 local dih_decode = dihedral.decode
 local dih_product = dihedral.product
+local NORTH = defines.direction.north
 
 local lib = {}
 
@@ -283,7 +284,7 @@ end
 function lib.extract_bp(bp_entity)
 	local oc = oclass.get_orientation_class_by_name(bp_entity.name)
 	if not oc then return encode_wide(OC.OC_Unknown, 0, 0, 0) end
-	return lib.from_cdm(oc, bp_entity.direction, bp_entity.mirror)
+	return lib.from_cdm(oc, bp_entity.direction or NORTH, bp_entity.mirror)
 end
 
 ---Impose the orientation on the given entity or ghost by setting its direction
