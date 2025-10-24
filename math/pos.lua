@@ -50,7 +50,7 @@ lib.pos_distsq = pos_distsq
 local function pos_close(pos1, pos2)
 	local x1, y1 = pos_get(pos1)
 	local x2, y2 = pos_get(pos2)
-	local dx, dy = x2 - x1, y2 - y1
+	local dx, dy = abs(x2 - x1), abs(y2 - y1)
 	return dx < 0.01 and dy < 0.01
 end
 lib.pos_close = pos_close
