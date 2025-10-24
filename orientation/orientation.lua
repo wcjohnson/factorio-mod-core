@@ -18,6 +18,8 @@ local NORTH = defines.direction.north
 local EAST = defines.direction.east
 local WEST = defines.direction.west
 local EMPTY = tlib.EMPTY_STRICT
+local get_orientation_class_for_entity = oclass.get_orientation_class_for_entity
+local get_class_properties = oclass.get_class_properties
 
 local lib = {}
 
@@ -293,7 +295,7 @@ end
 ---@param entity LuaEntity A *valid* entity or ghost
 ---@return Core.Orientation?
 function lib.extract(entity)
-	local oc = oclass.get_orientation_class_for_entity(entity)
+	local oc = get_orientation_class_for_entity(entity)
 	if not oc then return nil end
 	return lib.from_cdm(oc, entity.direction, entity.mirroring)
 end
@@ -312,7 +314,18 @@ end
 ---@param orientation Core.Orientation
 ---@param entity LuaEntity A *valid* entity or ghost of this orientation's class
 function lib.impose(orientation, entity)
-	local direction, mirroring = get_dm_wide(decode_wide(orientation))
+	local eoc = get_orientation_class_for_entity(entity)
+	local eoc_props = get_class_properties(eoc)
+	local oc, order, r, s = decode_wide(orientation)
+	if order ~= eoc_props.dihedral_r_order then
+		error(
+			"lib.orientation.impose: Orientation dihedral order "
+				.. order
+				.. " does not match entity orientation class dihedral order "
+				.. eoc_props.dihedral_r_order
+		)
+	end
+	local direction, mirroring = get_dm_wide(eoc, order, r, s)
 	entity.direction = direction
 	if mirroring ~= nil then entity.mirroring = mirroring end
 end

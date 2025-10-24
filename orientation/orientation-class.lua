@@ -308,6 +308,12 @@ lib.class_properties = {
 	},
 }
 
+---@param oclass Core.OrientationClass?
+---@return Core.OrientationClass.Properties
+function lib.get_class_properties(oclass)
+	return lib.class_properties[oclass or ""] or zero
+end
+
 -- Precompute blueprint transforms for each orientation class
 for _, props in pairs(lib.class_properties) do
 	props.blueprint_transforms = {}
@@ -535,6 +541,13 @@ function lib.get_orientation_class_by_name(name)
 	OC = get_static_orientation_class_for_type(eproto.type)
 	if OC then return OC end
 	return OrientationClass.OC_Unknown
+end
+
+---Convert an orientation class to a string for debugging.
+---@param oclass Core.OrientationClass?
+function lib.stringify(oclass)
+	if not oclass then return "nil" end
+	return OrientationClass[oclass] or "InvalidOrientationClass"
 end
 
 return lib
