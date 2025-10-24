@@ -1,6 +1,7 @@
 local oclass = require("lib.core.orientation.orientation-class")
 local dihedral = require("lib.core.math.dihedral")
 local pos_lib = require("lib.core.math.pos")
+local tlib = require("lib.core.table")
 
 local pos_get = pos_lib.pos_get
 local OC = oclass.OrientationClass
@@ -14,6 +15,9 @@ local dih_encode = dihedral.encode
 local dih_decode = dihedral.decode
 local dih_product = dihedral.product
 local NORTH = defines.direction.north
+local EAST = defines.direction.east
+local WEST = defines.direction.west
+local EMPTY = tlib.EMPTY_STRICT
 
 local lib = {}
 
@@ -42,6 +46,7 @@ end
 local function encode_wide(class, order, r, s)
 	return encode(class, dih_encode(order, r, s))
 end
+lib.encode_wide = encode_wide
 
 ---@param orientation Core.Orientation
 ---@return Core.OrientationClass
@@ -62,28 +67,39 @@ local function decode_wide(orientation)
 	local order, r, s = dih_decode(dih)
 	return class, order, r, s
 end
+lib.decode_wide = decode_wide
 
 ---Get direction and mirroring values from an exploded orientation.
----@param class Core.OrientationClass
+---@param oc Core.OrientationClass
 ---@param order int32
 ---@param r int32
 ---@param s 0|1
 ---@return defines.direction
 ---@return boolean?
-local function get_dm_wide(class, order, r, s)
+local function get_dm_wide(oc, order, r, s)
 	local mirroring = nil
-	if props[class].can_mirror then mirroring = (s == 1) end
+	local pr = props[oc] or EMPTY
+	local can_mirror = pr.can_mirror
+	if can_mirror then mirroring = (s == 1) end
 	if order == 0 then
-		return defines.direction.north, mirroring
+		return NORTH, mirroring
 	elseif order == 1 then
-		return (s == 0 and defines.direction.north or defines.direction.east),
-			mirroring
+		return (s == 0 and NORTH or EAST), mirroring
 	elseif order == 4 then
-		return (
-			r * 4 --[[@as defines.direction]]
-		),
-			mirroring
+		local dir = r * 4 --[[@as defines.direction]]
+		if not can_mirror then
+			-- S = east/west flip
+			if s == 1 then
+				if dir == EAST then
+					dir = WEST
+				elseif dir == WEST then
+					dir = EAST
+				end
+			end
+		end
+		return dir, mirroring
 	elseif order == 8 then
+		-- TODO: implement non-mirrored flips
 		return (
 			r * 2 --[[@as defines.direction]]
 		),
@@ -177,7 +193,8 @@ end
 ---@param context Core.OrientationContext
 ---@return Core.Dihedral|nil
 function lib.R(orientation, context)
-	local pr = props[orientation[1]]
+	local oc = decode(orientation)
+	local pr = props[oc] or EMPTY
 	if context == OrientationContext.Blueprint then
 		return pr.R_blueprint or pr.R_hand or pr.R_world or dih_encode(4, 1, 0)
 	elseif context == OrientationContext.Cursor then
@@ -196,7 +213,8 @@ end
 ---@param context Core.OrientationContext
 ---@return Core.Dihedral|nil
 function lib.Rinv(orientation, context)
-	local pr = props[orientation[1]]
+	local oc = decode(orientation)
+	local pr = props[oc] or EMPTY
 	if context == OrientationContext.Blueprint then
 		return pr.Rinv_blueprint
 			or pr.Rinv_hand
@@ -218,7 +236,8 @@ end
 ---@param context Core.OrientationContext
 ---@return Core.Dihedral|nil
 function lib.H(orientation, context)
-	local pr = props[orientation[1]]
+	local oc = decode(orientation)
+	local pr = props[oc] or EMPTY
 	if context == OrientationContext.Blueprint then
 		return pr.H_blueprint or pr.H_hand or pr.H_world or dih_encode(4, 0, 1)
 	elseif context == OrientationContext.Cursor then
@@ -237,7 +256,8 @@ end
 ---@param context Core.OrientationContext
 ---@return Core.Dihedral|nil
 function lib.V(orientation, context)
-	local pr = props[orientation[1]]
+	local oc = decode(orientation)
+	local pr = props[oc] or EMPTY
 	if context == OrientationContext.Blueprint then
 		return pr.V_blueprint or pr.V_hand or pr.V_world or dih_encode(4, 2, 1)
 	elseif context == OrientationContext.Cursor then
@@ -338,9 +358,10 @@ function lib.get_blueprint_transform_index(blueprint_orientation)
 end
 
 ---Stringify an orientation for debugging.
----@param orientation Core.Orientation
+---@param orientation Core.Orientation?
 ---@return string
 function lib.stringify(orientation)
+	if not orientation then return "O(nil)" end
 	local oc, direction, mirroring = lib.to_cdm(orientation)
 	return string.format(
 		"O(%s,%d%s)",
@@ -348,6 +369,16 @@ function lib.stringify(orientation)
 		direction,
 		mirroring ~= nil and (mirroring and "M" or "") or ""
 	)
+end
+
+---Determine if rotation from one direction to another is clockwise.
+---@param dir_from defines.direction
+---@param dir_to defines.direction
+---@return boolean
+function lib.is_direction_clockwise(dir_from, dir_to)
+	local cw_dir = math.abs((dir_to - dir_from) % 16)
+	local ccw_dir = math.abs((dir_from - dir_to) % 16)
+	return cw_dir <= ccw_dir
 end
 
 return lib
