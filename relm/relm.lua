@@ -1403,6 +1403,13 @@ event.bind("on_load", function()
 	end
 end)
 
+---Initialize Relm's storage if it doesn't already exist.
+function lib.init_storage()
+	if not storage._relm then
+		storage._relm = { roots = {}, root_counter = 0 } --[[@as Relm.Internal.Storage]]
+	end
+end
+
 -- Create storage on startup
 event.bind("on_startup", function()
 	-- Lint diagnostic here is ok. We can't disable it because of luals bug.
