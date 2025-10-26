@@ -1,4 +1,5 @@
 local abs = math.abs
+local sqrt = math.sqrt
 
 local dir_N = defines.direction.north
 local dir_S = defines.direction.south
@@ -31,6 +32,39 @@ local function pos_set(pos, x, y)
 	return pos
 end
 lib.pos_set = pos_set
+
+---Get the length of a position vector.
+---@param pos MapPosition
+---@return number
+local function pos_len(pos)
+	local x, y = pos_get(pos)
+	return sqrt(x * x + y * y)
+end
+lib.pos_len = pos_len
+
+---Scale a position vector.
+---@param pos MapPosition
+---@param factor number
+---@return MapPosition pos The mutated position.
+local function pos_scale(pos, factor)
+	local x, y = pos_get(pos)
+	return pos_set(pos, x * factor, y * factor)
+end
+lib.pos_scale = pos_scale
+
+---Normalize a position vector to length 1. Mutates the given position.
+---@param pos MapPosition
+---@return MapPosition pos The mutated position.
+local function pos_normalize(pos)
+	local length = pos_len(pos)
+	if length == 0 then
+		return pos_set(pos, 0, 0)
+	else
+		local x, y = pos_get(pos)
+		return pos_set(pos, x / length, y / length)
+	end
+end
+lib.pos_normalize = pos_normalize
 
 ---Get the distance-squared between two positions.
 ---@param pos1 MapPosition
