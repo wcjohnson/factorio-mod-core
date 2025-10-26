@@ -1,5 +1,9 @@
 local abs = math.abs
 local sqrt = math.sqrt
+local num_lib = require("lib.core.math.numeric")
+local round = num_lib.round
+local deg = math.deg
+local atan2 = math.atan2
 
 local dir_N = defines.direction.north
 local dir_S = defines.direction.south
@@ -184,5 +188,20 @@ local function pos_rotate_ortho(pos, origin, count)
 	end
 end
 lib.pos_rotate_ortho = pos_rotate_ortho
+
+--- Calculate the direction of travel from the source to the target. Rounds
+--- to the nearest `defines.direction` value. (h/t flib for this code)
+--- @param from MapPosition
+--- @param to MapPosition
+--- @return defines.direction
+function lib.dir_from(from, to)
+	local d = deg(atan2(to.y - from.y, to.x - from.x))
+	local direction = (d + 90) / 22.5
+	if direction < 0 then direction = direction + 16 end
+
+	direction = round(direction)
+
+	return direction --[[@as defines.direction]]
+end
 
 return lib
