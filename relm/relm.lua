@@ -103,6 +103,7 @@ local CREATE_KEYS = {
 	elem_type = true,
 	column_count = true,
 	style = true,
+	icon_selector = true,
 }
 -- TODO: if an element props change in one of the `CREATE_KEYS` categories, recreate it in `vpaint`.
 
