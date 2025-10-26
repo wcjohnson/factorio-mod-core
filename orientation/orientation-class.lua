@@ -15,105 +15,124 @@ local lib = {}
 ---classes can be somewhat dynamic; for example, assembling machines with
 ---active fluid recipes have a different orientation class than those without.
 ---
----Naming convention: `OC_(possible directions in hex)_(possible transformations)_(exceptional cases)`
----Possible transformations are:
---- - `R` = rotate clockwise (angle determined in context of possible directions)
+---Naming convention: `(group)_(symmetry)_(possible transformations)`
+---Group: D2, d8 (D8, ignore mirroring), D8 = Full D8 including mirroring, d16 = D16, ignore mirroring
+---Symmetry: 0 = vertical (H=s), 1 = first diagonal (H=rs), 2 = horizontal (H=r^2s), 3 = second diagonal (H=r^3s)
+---Possible transformations:
+--- - `R` = rotate clockwise one notch
 --- - `F` = flip
---- - `S` = flip only if equivalent to a rotation
 --- - lower case = as above but ONLY while held in cursor
 --- - `c` = different behavior while held in cursor compared to placed
---- - `%` = transformation result reduced modulo symmetry (i.e. if southwest = northeast, northeast is returned)
 ---@enum Core.OrientationClass
 local OrientationClass = {
-	"OC_Unknown",
-	"OC_Unsupported",
-	"OC_0",
-	"OC_04_r",
-	"OC_04_R",
-	"OC_04_RF",
-	"OC_048C_R",
-	"OC_048C_rs",
-	"OC_048C_rS",
-	"OC_048C_RS",
-	"OC_048C_RSc",
-	"OC_048CM_RF",
-	"OC_048CM_RFc",
-	"OC_048CM_latent",
-	"OC_02468ACE_rf",
+	"Unknown",
+	"Unsupported",
+	"Nil",
+	"D2_r",
+	"D2_R",
+	"D2_1_RF",
+	"d8_R",
+	"d8_0_rf",
+	"d8_0_rF",
+	"d8_0_RF",
+	"d8_1_RF",
+	"d8_2_RF",
+	"d8_3_RF",
+	"d8_0_RFc",
+	"D8_0_RF",
+	"D8_1_RF",
+	"D8_2_RF",
+	"D8_3_RF",
+	"D8_0_RFc",
+	"D8_0_latent",
+	"D8_1_latent",
+	"D8_2_latent",
+	"D8_3_latent",
+	"d16_0_rf",
 
 	---Unknown or unregistered entities that can't be classified.
 	---Will be treated as OC_0.
-	["OC_Unknown"] = 1,
+	["Unknown"] = 1,
 
 	---Deliberately unsupported entities. Will be treated as OC_0.
 	---[all rails/rail signals]
-	["OC_Unsupported"] = 2,
+	["Unsupported"] = 2,
 
 	---No flip or rotation possible.
-	["OC_0"] = 3,
+	["Nil"] = 3,
 
-	---North/east only, rotating interchanges them, flipping does nothing.
-	---Hand only
+	---North/east only
+	---R=s, H=id, V=id
 	---[`steam-turbine`]
-	["OC_04_r"] = 4,
+	["D2_r"] = 4,
 
-	---North/east only, rotating interchanges them, flipping does nothing.
-	---Transformation group = D8 / <r^2, s>.
+	---North/east only
+	---R=s, H=id, V=id
 	---[`fusion-reactor` with `two_direction_only=true`, ????]
-	["OC_04_R"] = 5,
+	["D2_R"] = 5,
 
-	---North/east only, flipping or rotating interchanges them.
-	---Transformation group = D8 / <r^2, rs>.
+	---North/east only, diagonal symmetry.
+	---R=s, H=s, V=s
 	---[storage-tank with `two_direction_only=true`]
-	["OC_04_RF"] = 6,
+	["D2_1_RF"] = 6,
 
 	---NESW, rotations only, no flips.
+	---R=r, H=id, V=id
 	---[`burner-mining-drill`]
-	["OC_048C_R"] = 7,
+	["d8_R"] = 7,
 
 	---NESW, rotations, flips when equivalent to a rotation, in-hand only
 	---[`offshore-pump`]
-	["OC_048C_rs"] = 8,
+	["d8_0_rf"] = 8,
 
 	---NESW, rotations, flips when equivalent to a rotation.
 	---Rotation in hand only, flips in hand or world.
 	---[`gun-turret`]
-	["OC_048C_rS"] = 9,
+	["d8_0_rF"] = 9,
 
 	---NESW, rotations, flips only when equivalent to a rotation.
 	---Transformation group = D8 / <s>
 	---[`simple-entity-with-owner`, all belt, all inserter, `big-mining-drill`]
-	["OC_048C_RS"] = 10,
+	["d8_0_RF"] = 10,
+	["d8_1_RF"] = 11,
+	["d8_2_RF"] = 12,
+	["d8_3_RF"] = 13,
 
 	---NESW, rotations, flips only when equivalent to a rotation.
 	---Transformation group = D8 / <s>
 	---Rotation while in world = r^2
 	---[`pump`, 1x2-combinators]
-	["OC_048C_RSc"] = 11,
+	["d8_0_RFc"] = 14,
 
 	---NESW + mirror bit
 	---Transformation group = D8.
-	---R = r, H = s, V = r^2*s
+	---R = r, H = s, V = r^2*H
 	---[AMs with active fluid boxes]
-	["OC_048CM_RF"] = 12,
+	["D8_0_RF"] = 15,
+	["D8_1_RF"] = 16,
+	["D8_2_RF"] = 17,
+	["D8_3_RF"] = 18,
 
 	---NESW + mirror bit, oblong shape, rotation = flip when placed
 	---Transformation group = D8
-	---While held: R = r, H = s, V = r^2*s
-	---While in world:  R = r^2, H = s, V = r^2*s
+	---While held: R = r, H = s, V = r^2*H
+	---While in world:  R = r^2, H = s, V = r^2*H
 	---[`recycler`]
-	["OC_048CM_RFc"] = 13,
+	["D8_0_RFc"] = 19,
 
 	---NESW + mirror bit, latent orientation. This applies to
 	---assembling machines with disabled fluid boxes. If they are re-enabled
-	---they become OC_048CM_RF and their latent orientation is restored.
+	---they become D8_n_RF and their latent orientation is restored.
 	---(The orientation is still readable from world entities while they are
 	--- latent, but they can't be changed.)
-	["OC_048CM_latent"] = 14,
+	["D8_0_latent"] = 20,
+	["D8_1_latent"] = 21,
+	["D8_2_latent"] = 22,
+	["D8_3_latent"] = 23,
 
 	---8-directional, sane transforms in hand, fixed when placed
 	---[`railgun-turret`]
-	["OC_02468ACE_rf"] = 15,
+	["d16_0_rf"] = 24,
 }
 lib.OrientationClass = OrientationClass
 
@@ -149,152 +168,223 @@ local zero = {
 	V_world = nil,
 }
 
+local D1_s = dih_encode(1, 0, 1)
+local D8_r = dih_encode(4, 1, 0)
+local D8_rinv = dih_encode(4, 3, 0)
+local D8_s = dih_encode(4, 0, 1)
+local D8_rs = dih_encode(4, 1, 1)
+local D8_r2s = dih_encode(4, 2, 1)
+local D8_r3s = dih_encode(4, 3, 1)
+local D8_r2 = dih_encode(4, 2, 0)
+
 ---Properties of each individual orientation class.
 ---@type table<Core.OrientationClass, Core.OrientationClass.Properties>
 lib.class_properties = {
-	[OrientationClass.OC_Unknown] = zero,
-	[OrientationClass.OC_Unsupported] = zero,
-	[OrientationClass.OC_0] = zero,
-	[OrientationClass.OC_04_r] = {
+	[OrientationClass.Unknown] = zero,
+	[OrientationClass.Unsupported] = zero,
+	[OrientationClass.Nil] = zero,
+	[OrientationClass.D2_r] = {
 		dihedral_r_order = 1,
 		can_mirror = false,
-		R_hand = dih_encode(1, 0, 1),
-		Rinv_hand = dih_encode(1, 0, 1),
-		H_hand = nil,
-		V_hand = nil,
+		R_hand = D1_s,
+		Rinv_hand = D1_s,
+	},
+	[OrientationClass.D2_R] = {
+		dihedral_r_order = 1,
+		can_mirror = false,
+		R_hand = D1_s,
+		Rinv_hand = D1_s,
+		R_world = D1_s,
+		Rinv_world = D1_s,
+	},
+	[OrientationClass.D2_1_RF] = {
+		dihedral_r_order = 1,
+		can_mirror = false,
+		R_hand = D1_s,
+		Rinv_hand = D1_s,
+		H_hand = D1_s,
+		V_hand = D1_s,
+		R_world = D1_s,
+		Rinv_world = D1_s,
+		H_world = D1_s,
+		V_world = D1_s,
+	},
+	[OrientationClass.d8_R] = {
+		dihedral_r_order = 4,
+		can_mirror = false,
+		R_hand = D8_r,
+		Rinv_hand = D8_rinv,
+		R_world = D8_r,
+		Rinv_world = D8_rinv,
+	},
+	[OrientationClass.d8_0_rf] = {
+		dihedral_r_order = 4,
+		can_mirror = false,
+		R_hand = D8_r,
+		Rinv_hand = D8_rinv,
+		H_hand = D8_s,
+		V_hand = D8_r2s,
 		R_world = nil,
 		Rinv_world = nil,
 		H_world = nil,
 		V_world = nil,
 	},
-	[OrientationClass.OC_04_R] = {
-		dihedral_r_order = 1,
-		can_mirror = false,
-		R_hand = dih_encode(1, 0, 1),
-		Rinv_hand = dih_encode(1, 0, 1),
-		H_hand = nil,
-		V_hand = nil,
-		R_world = dih_encode(1, 0, 1),
-		Rinv_world = dih_encode(1, 0, 1),
-		H_world = nil,
-		V_world = nil,
-	},
-	[OrientationClass.OC_04_RF] = {
-		dihedral_r_order = 1,
-		can_mirror = false,
-		R_hand = dih_encode(1, 0, 1),
-		Rinv_hand = dih_encode(1, 0, 1),
-		H_hand = dih_encode(1, 0, 1),
-		V_hand = dih_encode(1, 0, 1),
-		R_world = dih_encode(1, 0, 1),
-		Rinv_world = dih_encode(1, 0, 1),
-		H_world = dih_encode(1, 0, 1),
-		V_world = dih_encode(1, 0, 1),
-	},
-	[OrientationClass.OC_048C_R] = {
+	[OrientationClass.d8_0_rF] = {
 		dihedral_r_order = 4,
 		can_mirror = false,
-		R_hand = dih_encode(4, 1, 0),
-		Rinv_hand = dih_encode(4, 3, 0),
-		H_hand = nil,
-		V_hand = nil,
-		R_world = dih_encode(4, 1, 0),
-		Rinv_world = dih_encode(4, 3, 0),
-		H_world = nil,
-		V_world = nil,
-	},
-	[OrientationClass.OC_048C_rs] = {
-		dihedral_r_order = 4,
-		can_mirror = false,
-		R_hand = dih_encode(4, 1, 0),
-		Rinv_hand = dih_encode(4, 3, 0),
-		H_hand = dih_encode(4, 0, 1),
-		V_hand = dih_encode(4, 2, 1),
+		R_hand = D8_r,
+		Rinv_hand = D8_rinv,
+		H_hand = D8_s,
+		V_hand = D8_r2s,
 		R_world = nil,
 		Rinv_world = nil,
-		H_world = nil,
-		V_world = nil,
+		H_world = D8_s,
+		V_world = D8_r2s,
 	},
-	[OrientationClass.OC_048C_rS] = {
+	[OrientationClass.d8_0_RF] = {
 		dihedral_r_order = 4,
 		can_mirror = false,
-		R_hand = dih_encode(4, 1, 0),
-		Rinv_hand = dih_encode(4, 3, 0),
-		H_hand = dih_encode(4, 0, 1),
-		V_hand = dih_encode(4, 2, 1),
-		R_world = nil,
-		Rinv_world = nil,
-		H_world = dih_encode(4, 0, 1),
-		V_world = dih_encode(4, 2, 1),
+		R_hand = D8_r,
+		Rinv_hand = D8_rinv,
+		H_hand = D8_s,
+		V_hand = dih_product(D8_r2, D8_s),
+		R_world = D8_r,
+		Rinv_world = D8_rinv,
+		H_world = D8_s,
+		V_world = dih_product(D8_r2, D8_s),
 	},
-	[OrientationClass.OC_048C_RS] = {
+	[OrientationClass.d8_1_RF] = {
 		dihedral_r_order = 4,
 		can_mirror = false,
-		R_hand = dih_encode(4, 1, 0),
-		Rinv_hand = dih_encode(4, 3, 0),
-		H_hand = dih_encode(4, 0, 1),
-		V_hand = dih_encode(4, 2, 1),
-		R_world = dih_encode(4, 1, 0),
-		Rinv_world = dih_encode(4, 3, 0),
-		H_world = dih_encode(4, 0, 1),
-		V_world = dih_encode(4, 2, 1),
+		R_hand = D8_r,
+		Rinv_hand = D8_rinv,
+		H_hand = D8_rs,
+		V_hand = dih_product(D8_r2, D8_rs),
+		R_world = D8_r,
+		Rinv_world = D8_rinv,
+		H_world = D8_rs,
+		V_world = dih_product(D8_r2, D8_rs),
+	},
+	[OrientationClass.d8_2_RF] = {
+		dihedral_r_order = 4,
+		can_mirror = false,
+		R_hand = D8_r,
+		Rinv_hand = D8_rinv,
+		H_hand = D8_r2s,
+		V_hand = dih_product(D8_r2, D8_r2s),
+		R_world = D8_r,
+		Rinv_world = D8_rinv,
+		H_world = D8_r2s,
+		V_world = dih_product(D8_r2, D8_r2s),
+	},
+	[OrientationClass.d8_3_RF] = {
+		dihedral_r_order = 4,
+		can_mirror = false,
+		R_hand = D8_r,
+		Rinv_hand = D8_rinv,
+		H_hand = D8_r3s,
+		V_hand = dih_product(D8_r2, D8_r3s),
+		R_world = D8_r,
+		Rinv_world = D8_rinv,
+		H_world = D8_r3s,
+		V_world = dih_product(D8_r2, D8_r3s),
 	},
 	-- Rotation while in world = r^2
-	[OrientationClass.OC_048C_RSc] = {
+	[OrientationClass.d8_0_RFc] = {
 		dihedral_r_order = 4,
 		can_mirror = false,
-		R_hand = dih_encode(4, 1, 0),
-		Rinv_hand = dih_encode(4, 3, 0),
-		H_hand = dih_encode(4, 0, 1),
-		V_hand = dih_encode(4, 2, 1),
+		R_hand = D8_r,
+		Rinv_hand = D8_rinv,
+		H_hand = D8_s,
+		V_hand = D8_r2s,
 		R_world = dih_encode(4, 2, 0),
 		Rinv_world = dih_encode(4, 2, 0),
-		H_world = dih_encode(4, 0, 1),
-		V_world = dih_encode(4, 2, 1),
+		H_world = D8_s,
+		V_world = D8_r2s,
 	},
-	[OrientationClass.OC_048CM_RF] = {
+	[OrientationClass.D8_0_RF] = {
 		dihedral_r_order = 4,
 		can_mirror = true,
-		R_hand = dih_encode(4, 1, 0),
-		Rinv_hand = dih_encode(4, 3, 0),
-		H_hand = dih_encode(4, 0, 1),
-		V_hand = dih_encode(4, 2, 1),
-		R_world = dih_encode(4, 1, 0),
-		Rinv_world = dih_encode(4, 3, 0),
-		H_world = dih_encode(4, 0, 1),
-		V_world = dih_encode(4, 2, 1),
+		R_hand = D8_r,
+		Rinv_hand = D8_rinv,
+		H_hand = D8_s,
+		V_hand = dih_product(D8_r2, D8_s),
+		R_world = D8_r,
+		Rinv_world = D8_rinv,
+		H_world = D8_s,
+		V_world = dih_product(D8_r2, D8_s),
+	},
+	[OrientationClass.D8_1_RF] = {
+		dihedral_r_order = 4,
+		can_mirror = true,
+		R_hand = D8_r,
+		Rinv_hand = D8_rinv,
+		H_hand = D8_rs,
+		V_hand = dih_product(D8_r2, D8_rs),
+		R_world = D8_r,
+		Rinv_world = D8_rinv,
+		H_world = D8_rs,
+		V_world = dih_product(D8_r2, D8_rs),
+	},
+	[OrientationClass.D8_2_RF] = {
+		dihedral_r_order = 4,
+		can_mirror = true,
+		R_hand = D8_r,
+		Rinv_hand = D8_rinv,
+		H_hand = D8_r2s,
+		V_hand = dih_product(D8_r2, D8_r2s),
+		R_world = D8_r,
+		Rinv_world = D8_rinv,
+		H_world = D8_r2s,
+		V_world = dih_product(D8_r2, D8_r2s),
 	},
 	---While held: R = r, H = s, V = r^2*s
 	---While in world:  R = r^2, H = s, V = r^2*s
-	[OrientationClass.OC_048CM_RFc] = {
+	[OrientationClass.D8_0_RFc] = {
 		dihedral_r_order = 4,
 		can_mirror = true,
-		R_hand = dih_encode(4, 1, 0),
-		Rinv_hand = dih_encode(4, 3, 0),
-		H_hand = dih_encode(4, 0, 1),
-		V_hand = dih_encode(4, 2, 1),
+		R_hand = D8_r,
+		Rinv_hand = D8_rinv,
+		H_hand = D8_s,
+		V_hand = dih_product(D8_r2, D8_s),
 		R_world = dih_encode(4, 2, 0),
 		Rinv_world = dih_encode(4, 2, 0),
-		H_world = dih_encode(4, 0, 1),
-		V_world = dih_encode(4, 2, 1),
+		H_world = D8_s,
+		V_world = dih_product(D8_r2, D8_s),
 	},
-	[OrientationClass.OC_048CM_latent] = {
+	[OrientationClass.D8_0_latent] = {
 		dihedral_r_order = 4,
 		can_mirror = true,
-		R_hand = nil,
-		Rinv_hand = nil,
-		H_hand = nil,
-		V_hand = nil,
-		R_world = nil,
-		Rinv_world = nil,
-		H_world = nil,
-		V_world = nil,
-		R_blueprint = dih_encode(4, 1, 0),
-		Rinv_blueprint = dih_encode(4, 3, 0),
-		H_blueprint = dih_encode(4, 0, 1),
-		V_blueprint = dih_encode(4, 2, 1),
+		R_blueprint = D8_r,
+		Rinv_blueprint = D8_rinv,
+		H_blueprint = D8_s,
+		V_blueprint = dih_product(D8_r2, D8_s),
 	},
-	[OrientationClass.OC_02468ACE_rf] = {
+	[OrientationClass.D8_1_latent] = {
+		dihedral_r_order = 4,
+		can_mirror = true,
+		R_blueprint = D8_r,
+		Rinv_blueprint = D8_rinv,
+		H_blueprint = D8_rs,
+		V_blueprint = dih_product(D8_r2, D8_rs),
+	},
+	[OrientationClass.D8_2_latent] = {
+		dihedral_r_order = 4,
+		can_mirror = true,
+		R_blueprint = D8_r,
+		Rinv_blueprint = D8_rinv,
+		H_blueprint = D8_r2s,
+		V_blueprint = dih_product(D8_r2, D8_r2s),
+	},
+	[OrientationClass.D8_3_latent] = {
+		dihedral_r_order = 4,
+		can_mirror = true,
+		R_blueprint = D8_r,
+		Rinv_blueprint = D8_rinv,
+		H_blueprint = D8_r3s,
+		V_blueprint = dih_product(D8_r2, D8_r3s),
+	},
+	[OrientationClass.d16_0_rf] = {
 		dihedral_r_order = 8,
 		can_mirror = false,
 		R_hand = dih_encode(8, 1, 0),
@@ -305,6 +395,10 @@ lib.class_properties = {
 		Rinv_world = nil,
 		H_world = nil,
 		V_world = nil,
+		R_blueprint = dih_encode(8, 2, 0),
+		Rinv_blueprint = dih_encode(8, 6, 0),
+		H_blueprint = dih_encode(8, 0, 1),
+		V_blueprint = dih_encode(8, 4, 1),
 	},
 }
 
@@ -382,46 +476,46 @@ end
 --- Prototype-types with fixed orientation classes
 ---@type table<string, Core.OrientationClass>
 local static_by_type = {
-	["container"] = OrientationClass.OC_0,
-	["simple-entity-with-owner"] = OrientationClass.OC_048C_RS,
-	["transport-belt"] = OrientationClass.OC_048C_RS,
-	["underground-belt"] = OrientationClass.OC_048C_RS,
-	["linked-belt"] = OrientationClass.OC_048C_RS,
-	["splitter"] = OrientationClass.OC_048C_RS,
-	["inserter"] = OrientationClass.OC_048C_RS,
-	["loader"] = OrientationClass.OC_048C_RS,
-	["electric-pole"] = OrientationClass.OC_0,
-	["heat-pipe"] = OrientationClass.OC_0,
-	["pipe"] = OrientationClass.OC_0,
-	["pipe-to-ground"] = OrientationClass.OC_048C_RS,
-	["pump"] = OrientationClass.OC_048C_RSc,
-	["logistic-container"] = OrientationClass.OC_0,
-	["roboport"] = OrientationClass.OC_0,
-	["arithmetic-combinator"] = OrientationClass.OC_048C_RSc,
-	["decider-combinator"] = OrientationClass.OC_048C_RSc,
-	["selector-combinator"] = OrientationClass.OC_048C_RSc,
-	["constant-combinator"] = OrientationClass.OC_048C_RS,
-	["power-switch"] = OrientationClass.OC_0,
-	["programmable-speaker"] = OrientationClass.OC_0,
-	["lamp"] = OrientationClass.OC_0,
-	["accumulator"] = OrientationClass.OC_0,
-	["solar-panel"] = OrientationClass.OC_0,
-	["lightning-attractor"] = OrientationClass.OC_0,
-	["lab"] = OrientationClass.OC_0,
-	["radar"] = OrientationClass.OC_0,
-	["wall"] = OrientationClass.OC_0,
-	["gate"] = OrientationClass.OC_04_R,
-	["rocket-silo"] = OrientationClass.OC_0,
-	["cargo-landing-pad"] = OrientationClass.OC_0,
-	["cargo-bay"] = OrientationClass.OC_0,
-	["assembling-machine"] = OrientationClass.OC_048CM_latent,
+	["container"] = OrientationClass.Nil,
+	["simple-entity-with-owner"] = OrientationClass.d8_0_RF,
+	["transport-belt"] = OrientationClass.d8_0_RF,
+	["underground-belt"] = OrientationClass.d8_0_RF,
+	["linked-belt"] = OrientationClass.d8_0_RF,
+	["splitter"] = OrientationClass.d8_0_RF,
+	["inserter"] = OrientationClass.d8_0_RF,
+	["loader"] = OrientationClass.d8_0_RF,
+	["electric-pole"] = OrientationClass.Nil,
+	["heat-pipe"] = OrientationClass.Nil,
+	["pipe"] = OrientationClass.Nil,
+	["pipe-to-ground"] = OrientationClass.d8_0_RF,
+	["pump"] = OrientationClass.d8_0_RFc,
+	["logistic-container"] = OrientationClass.Nil,
+	["roboport"] = OrientationClass.Nil,
+	["arithmetic-combinator"] = OrientationClass.d8_0_RFc,
+	["decider-combinator"] = OrientationClass.d8_0_RFc,
+	["selector-combinator"] = OrientationClass.d8_0_RFc,
+	["constant-combinator"] = OrientationClass.d8_0_RF,
+	["power-switch"] = OrientationClass.Nil,
+	["programmable-speaker"] = OrientationClass.Nil,
+	["lamp"] = OrientationClass.Nil,
+	["accumulator"] = OrientationClass.Nil,
+	["solar-panel"] = OrientationClass.Nil,
+	["lightning-attractor"] = OrientationClass.Nil,
+	["lab"] = OrientationClass.Nil,
+	["radar"] = OrientationClass.Nil,
+	["wall"] = OrientationClass.Nil,
+	["gate"] = OrientationClass.D2_R,
+	["rocket-silo"] = OrientationClass.Nil,
+	["cargo-landing-pad"] = OrientationClass.Nil,
+	["cargo-bay"] = OrientationClass.Nil,
+	["assembling-machine"] = OrientationClass.D8_0_latent,
 	-- Unsupported rail entities
-	["rail-signal"] = OrientationClass.OC_Unsupported,
-	["rail-chain-signal"] = OrientationClass.OC_Unsupported,
-	["straight-rail"] = OrientationClass.OC_Unsupported,
-	["curved-rail-a"] = OrientationClass.OC_Unsupported,
-	["curved-rail-b"] = OrientationClass.OC_Unsupported,
-	["half-diagonal-rail"] = OrientationClass.OC_Unsupported,
+	["rail-signal"] = OrientationClass.Unsupported,
+	["rail-chain-signal"] = OrientationClass.Unsupported,
+	["straight-rail"] = OrientationClass.Unsupported,
+	["curved-rail-a"] = OrientationClass.Unsupported,
+	["curved-rail-b"] = OrientationClass.Unsupported,
+	["half-diagonal-rail"] = OrientationClass.Unsupported,
 }
 
 ---If a prototype type has a statically determined orientation class, return it.
@@ -437,34 +531,34 @@ lib.get_static_orientation_class_for_type =
 ---Prototype-names with fixed orientation classes
 ---@type table<string, Core.OrientationClass>
 local static_by_name = {
-	["boiler"] = OrientationClass.OC_048C_RS,
-	["steam-engine"] = OrientationClass.OC_04_r,
-	["nuclear-reactor"] = OrientationClass.OC_0,
-	["heat-exchanger"] = OrientationClass.OC_048C_RSc,
-	["steam-turbine"] = OrientationClass.OC_04_r,
-	["fusion-reactor"] = OrientationClass.OC_04_R,
-	["fusion-generator"] = OrientationClass.OC_048C_RSc,
-	["burner-mining-drill"] = OrientationClass.OC_048C_R,
-	["electric-mining-drill"] = OrientationClass.OC_048C_RS,
-	["big-mining-drill"] = OrientationClass.OC_048C_RS,
-	["offshore-pump"] = OrientationClass.OC_048C_rs,
-	["pumpjack"] = OrientationClass.OC_048C_R,
-	["stone-furnace"] = OrientationClass.OC_0,
-	["steel-furnace"] = OrientationClass.OC_0,
-	["electric-furnace"] = OrientationClass.OC_0,
-	["recycler"] = OrientationClass.OC_048CM_RFc,
-	["agricultural-tower"] = OrientationClass.OC_0,
-	["heating-tower"] = OrientationClass.OC_0,
-	["gun-turret"] = OrientationClass.OC_048C_rS,
-	["laser-turret"] = OrientationClass.OC_048C_rS,
-	["flamethrower-turret"] = OrientationClass.OC_048C_rs,
-	["artillery-turret"] = OrientationClass.OC_048C_RS,
-	["rocket-turret"] = OrientationClass.OC_048C_rS,
-	["tesla-turret"] = OrientationClass.OC_048C_rS,
-	["railgun-turret"] = OrientationClass.OC_02468ACE_rf,
+	["boiler"] = OrientationClass.d8_0_RF,
+	["steam-engine"] = OrientationClass.D2_r,
+	["nuclear-reactor"] = OrientationClass.Nil,
+	["heat-exchanger"] = OrientationClass.d8_0_RFc,
+	["steam-turbine"] = OrientationClass.D2_r,
+	["fusion-reactor"] = OrientationClass.D2_R,
+	["fusion-generator"] = OrientationClass.d8_0_RFc,
+	["burner-mining-drill"] = OrientationClass.d8_R,
+	["electric-mining-drill"] = OrientationClass.d8_0_RF,
+	["big-mining-drill"] = OrientationClass.d8_0_RF,
+	["offshore-pump"] = OrientationClass.d8_0_rf,
+	["pumpjack"] = OrientationClass.d8_R,
+	["stone-furnace"] = OrientationClass.Nil,
+	["steel-furnace"] = OrientationClass.Nil,
+	["electric-furnace"] = OrientationClass.Nil,
+	["recycler"] = OrientationClass.D8_0_RFc,
+	["agricultural-tower"] = OrientationClass.Nil,
+	["heating-tower"] = OrientationClass.Nil,
+	["gun-turret"] = OrientationClass.d8_0_rF,
+	["laser-turret"] = OrientationClass.d8_0_rF,
+	["flamethrower-turret"] = OrientationClass.d8_0_rf,
+	["artillery-turret"] = OrientationClass.d8_0_RF,
+	["rocket-turret"] = OrientationClass.d8_0_rF,
+	["tesla-turret"] = OrientationClass.d8_0_rF,
+	["railgun-turret"] = OrientationClass.d16_0_rf,
 	-- AMs with always-on fluidboxes
-	["chemical-plant"] = OrientationClass.OC_048CM_RF,
-	["oil-refinery"] = OrientationClass.OC_048CM_RF,
+	["chemical-plant"] = OrientationClass.D8_0_RF,
+	["oil-refinery"] = OrientationClass.D8_0_RF,
 }
 
 ---If a prototype name has a statically determined orientation class, return it.
@@ -510,9 +604,9 @@ local function get_dynamic_orientation_class_for_entity(entity)
 	if get_actual_type(entity) ~= "assembling-machine" then return nil end
 	local fluidbox = entity.fluidbox
 	if fluidbox and #fluidbox > 0 then
-		return OrientationClass.OC_048CM_RF
+		return OrientationClass.D8_0_RF
 	else
-		return OrientationClass.OC_048CM_latent
+		return OrientationClass.D8_0_latent
 	end
 end
 lib.get_dynamic_orientation_class_for_entity =
@@ -522,11 +616,11 @@ lib.get_dynamic_orientation_class_for_entity =
 ---@param entity LuaEntity?
 ---@return Core.OrientationClass
 function lib.get_orientation_class_for_entity(entity)
-	if not entity or not entity.valid then return OrientationClass.OC_Unknown end
+	if not entity or not entity.valid then return OrientationClass.Unknown end
 	return get_dynamic_orientation_class_for_entity(entity)
 		or get_static_orientation_class_for_name(get_actual_name(entity))
 		or get_static_orientation_class_for_type(get_actual_type(entity))
-		or OrientationClass.OC_Unknown
+		or OrientationClass.Unknown
 end
 
 ---Get the orientation class for an entity only by its prototype name.
@@ -537,10 +631,10 @@ function lib.get_orientation_class_by_name(name)
 	local OC = get_static_orientation_class_for_name(name)
 	if OC then return OC end
 	local eproto = prototypes.entity[name]
-	if not eproto then return OrientationClass.OC_Unknown end
+	if not eproto then return OrientationClass.Unknown end
 	OC = get_static_orientation_class_for_type(eproto.type)
 	if OC then return OC end
-	return OrientationClass.OC_Unknown
+	return OrientationClass.Unknown
 end
 
 ---Convert an orientation class to a string for debugging.

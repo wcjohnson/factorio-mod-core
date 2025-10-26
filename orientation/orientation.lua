@@ -89,16 +89,6 @@ local function get_dm_wide(oc, order, r, s)
 		return (s == 0 and NORTH or EAST), mirroring
 	elseif order == 4 then
 		local dir = r * 4 --[[@as defines.direction]]
-		if not can_mirror then
-			-- S = east/west flip
-			if s == 1 then
-				if dir == EAST then
-					dir = WEST
-				elseif dir == WEST then
-					dir = EAST
-				end
-			end
-		end
 		return dir, mirroring
 	elseif order == 8 then
 		-- TODO: implement non-mirrored flips
@@ -305,7 +295,7 @@ end
 ---@return Core.Orientation
 function lib.extract_bp(bp_entity)
 	local oc = oclass.get_orientation_class_by_name(bp_entity.name)
-	if not oc then return encode_wide(OC.OC_Unknown, 0, 0, 0) end
+	if not oc then return encode_wide(OC.Unknown, 0, 0, 0) end
 	return lib.from_cdm(oc, bp_entity.direction or NORTH, bp_entity.mirror)
 end
 
