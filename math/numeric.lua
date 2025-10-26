@@ -1,14 +1,18 @@
 local floor = math.floor
+local strformat = string.format
 
 local lib = {}
 
----Round to nearest factor of `bracket`.
+---Round to nearest factor of `divisor`.
 ---@param v number The value to round.
----@param bracket? number The rounding bracket. Defaults to 1.
-local function round(v, bracket)
-	bracket = bracket or 1
-	local sign = (v >= 0 and 1) or -1
-	return floor(v / bracket + 0.5) * bracket
+---@param divisor? number The rounding bracket. Defaults to 1.
+local function round(v, divisor)
+	divisor = divisor or 1
+	if v >= 0 then
+		return floor(v / divisor + 0.5) * divisor
+	else
+		return floor(v / divisor - 0.5) * divisor
+	end
 end
 lib.round = round
 
@@ -22,11 +26,11 @@ function lib.format_ticks(ticks)
 	seconds = seconds % 60
 	minutes = minutes % 60
 	if minutes == 0 and hours == 0 then
-		return string.format("%dvs", seconds)
+		return strformat("%dvs", seconds)
 	elseif hours == 0 then
-		return string.format("%dvm%02dvs", minutes, seconds)
+		return strformat("%dvm%02dvs", minutes, seconds)
 	else
-		return string.format("%dvh%02dvm%02dvs", hours, minutes, seconds)
+		return strformat("%dvh%02dvm%02dvs", hours, minutes, seconds)
 	end
 end
 
