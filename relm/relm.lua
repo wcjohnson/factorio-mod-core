@@ -1407,6 +1407,7 @@ end)
 ---Initialize Relm's storage if it doesn't already exist.
 function lib.init_storage()
 	if not storage._relm then
+		-- Lint diagnostic here is ok. We can't disable it because of luals bug.
 		storage._relm = { roots = {}, root_counter = 0 } --[[@as Relm.Internal.Storage]]
 	end
 end
@@ -1483,11 +1484,14 @@ function lib.root_create(container_element, name, element_type, props)
 	storage._relm.root_counter = id
 	props.root_id = id
 
+	-- Diagnostics disabled below because of partial-structure assembly.
+	---@diagnostic disable-next-line: missing-fields
 	relm_state.roots[id] = {
 		id = id,
 		player_index = player_index,
 		container_element = container_element,
 		name_in_container = name,
+		---@diagnostic disable-next-line: missing-fields
 		vtree_root = {
 			root_id = id,
 		},
