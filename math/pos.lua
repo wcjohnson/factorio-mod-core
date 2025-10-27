@@ -204,4 +204,11 @@ function lib.dir_from(from, to)
 	return direction --[[@as defines.direction]]
 end
 
+--- Calculate the opposite direction. (h/t flib for this code)
+--- @param direction defines.direction
+--- @return defines.direction
+function lib.dir_opposite(direction)
+	return (direction + 8) % 16 --[[@as defines.direction]]
+end
+
 return lib
