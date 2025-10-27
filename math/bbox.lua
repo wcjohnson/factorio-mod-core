@@ -5,6 +5,7 @@ local round = num_lib.round
 local pos_get = pos_lib.pos_get
 local pos_set = pos_lib.pos_set
 local type = _G.type
+local floor = math.floor
 
 local lib = {}
 
@@ -309,5 +310,28 @@ local function pos_set_center(pos, bbox)
 	return pos_set(pos, cx, cy)
 end
 lib.pos_set_center = pos_set_center
+
+---Set the given bbox to cover the given position (1x1 area).
+---@param bbox BoundingBox
+---@param pos MapPosition
+---@return BoundingBox bbox The mutated bbox.
+local function bbox_from_pos(bbox, pos)
+	local x, y = pos_get(pos)
+	x = floor(x)
+	y = floor(y)
+	return bbox_set(bbox, x, y, x + 1, y + 1)
+end
+lib.bbox_from_pos = bbox_from_pos
+
+---Set the given bbox to be centered on the given point with the given size.
+---@param bbox BoundingBox
+---@param center MapPosition
+---@param dx number
+---@param dy number
+local function bbox_around(bbox, center, dx, dy)
+	local cx, cy = pos_get(center)
+	return bbox_set(bbox, cx - dx / 2, cy - dy / 2, cx + dx / 2, cy + dy / 2)
+end
+lib.bbox_around = bbox_around
 
 return lib
