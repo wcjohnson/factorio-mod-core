@@ -1,3 +1,4 @@
+---@diagnostic disable: inject-field
 --------------------------------------------------------------------------------
 -- STRUCTURED TRACING
 -- A simple, low cost logging, debugging, and stats library based on
@@ -24,6 +25,9 @@
 -- well as a default global driver for handling them. It is NOT necessary to
 -- use this library in order for your own mod to use or display straces.
 --------------------------------------------------------------------------------
+
+local format_tick_relative =
+	require("lib.core.math.numeric").format_tick_relative
 
 local select = _G.select
 local type = _G.type
@@ -89,7 +93,7 @@ end
 ---@param fn fun(key: string, ...: any) Function to call for each key-value pair. If the `message` key is encountered, the function will be called with `message` and all remaining message args.
 ---@param level int The strace level.
 ---@param ... any The strace message parameter pack.
-function lib.foreach(fn, level, ...)
+local function foreach(fn, level, ...)
 	fn("level", level)
 	for i = 1, select("#", ...), 2 do
 		local key = select(i, ...)
@@ -101,6 +105,7 @@ function lib.foreach(fn, level, ...)
 		fn(key, val)
 	end
 end
+lib.foreach = foreach
 
 ---Get a key-value pair from an strace message by linear search for the key.
 ---@return string? key The key or `nil` if no such key exists in the message
@@ -226,7 +231,8 @@ local function stringify_with(val, serpent_printer)
 end
 
 ---Convert a lua value to a compact string.
-function lib.stringify(val) return stringify_with(val, serpent_line) end
+local function stringify(val) return stringify_with(val, serpent_line) end
+lib.stringify = stringify
 
 ---Convert a lua value to a pretty-printed string.
 function lib.prettify(val) return stringify_with(val, serpent_block) end
@@ -281,6 +287,39 @@ function lib.filter(is_whitelist, filters, ...)
 	else
 		return true
 	end
+end
+
+-- Inform typechecking that _LOG_LEVEL is an integer.
+storage._LOG_LEVEL = lib.INFO
+
+function lib.standard_log_handler(level, ...)
+	local lv = (storage and storage._LOG_LEVEL) or 10
+	if level < lv then return end
+	local frame = 0
+	if game then frame = game.ticks_played end
+	local cat_tbl = {
+		"[",
+		frame,
+		format_tick_relative(frame, 0),
+		level_to_string[level],
+		"]",
+	}
+	foreach(function(key, value, ...)
+		if key == "level" then
+		-- skip
+		elseif key == "message" then
+			cat_tbl[#cat_tbl + 1] = stringify(value)
+			for i = 1, select("#", ...) do
+				cat_tbl[#cat_tbl + 1] = stringify(select(i, ...))
+			end
+		else
+			cat_tbl[#cat_tbl + 1] = " "
+			cat_tbl[#cat_tbl + 1] = tostring(key)
+			cat_tbl[#cat_tbl + 1] = "="
+			cat_tbl[#cat_tbl + 1] = stringify(value)
+		end
+	end, level, ...)
+	log(tconcat(cat_tbl, " "))
 end
 
 return lib
