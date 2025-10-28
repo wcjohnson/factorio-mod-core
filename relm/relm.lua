@@ -1595,6 +1595,17 @@ function lib.root_foreach(handler)
 	end
 end
 
+---Destroy all Relm roots. This is primarily useful in migrations where stored
+---Relm state may be invalid due to other data changes.
+function lib.destroy_all_roots()
+	local relm_storage = storage._relm
+	if not relm_storage then return end
+	local roots = relm_storage.roots
+	for id, _ in pairs(roots) do
+		lib.root_destroy(id)
+	end
+end
+
 --------------------------------------------------------------------------------
 -- API: ELEMENTS
 --------------------------------------------------------------------------------
