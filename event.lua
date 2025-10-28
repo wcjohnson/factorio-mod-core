@@ -117,7 +117,7 @@ local function make_event_callback(event_name, handlers)
 	end
 end
 
-local function bind_game_event(event_name)
+local function bind_game_event(event_name, filters)
 	if bound_game_events[event_name] then return end
 	bound_game_events[event_name] = true
 
@@ -126,7 +126,11 @@ local function bind_game_event(event_name)
 		handlers = {}
 		static_handlers[event_name] = handlers
 	end
-	script.on_event(event_name, make_event_callback(event_name, handlers))
+	script.on_event(
+		event_name,
+		make_event_callback(event_name, handlers),
+		filters
+	)
 end
 
 local function bind_tick(minus_dt)
@@ -141,7 +145,7 @@ local function bind_tick(minus_dt)
 	script.on_nth_tick(-minus_dt, make_event_callback(minus_dt, handlers))
 end
 
-local function bind_any_event(event_name)
+local function bind_any_event(event_name, filters)
 	if
 		type(event_name) == "string"
 		and defines.events[event_name]
@@ -152,7 +156,7 @@ local function bind_any_event(event_name)
 
 	if type(event_name) == "number" then
 		if event_name >= 0 then
-			bind_game_event(event_name)
+			bind_game_event(event_name, filters)
 		else
 			bind_tick(event_name)
 		end
@@ -169,7 +173,8 @@ local event = {}
 ---@param event_names Core.EventName|Core.EventName[] The event to bind to. May be a string for a custom event, a member of `defines.events`, or the return value of `event.nth_tick`. Multiple events may be given as an array.
 ---@param handler fun(...) The handler function.
 ---@param first boolean? If true, the handler will be called before other handlers for the event. Use with care.
-function event.bind(event_names, handler, first)
+---@param filters? table Passed to `script.on_event` as the `filters` argument when binding to game events. NOTE: The first `filters` argument is the only one the game will see. Subsequent bindings will be against the same filters.
+function event.bind(event_names, handler, first, filters)
 	if game then
 		error(
 			"`event.bind` must be called only at the top of the control phase. use `event.dynamic_bind` instead for late or dynamic event binding."
@@ -177,7 +182,7 @@ function event.bind(event_names, handler, first)
 	end
 	for _, event_name in tlib.iter(event_names) do
 		---@cast event_name Core.EventName
-		event_name = bind_any_event(event_name)
+		event_name = bind_any_event(event_name, filters)
 		add_static_handler(event_name, handler, first)
 	end
 end
