@@ -4,6 +4,7 @@ require("lib.core.require").require_guard("lib.core.scheduler")
 
 local counters = require("lib.core.counters")
 local event = require("lib.core.event")
+local log = require("lib.core.strace")
 
 ---@class Core.Lib.Scheduler
 local lib = {}
@@ -56,6 +57,14 @@ event.bind(
 	"on_startup",
 	---@param reset_data Core.ResetData
 	function(reset_data)
+		log.info("Scheduler: resetting state")
+		if storage._sched and storage._sched.at and next(storage._sched.at) then
+			log.warn(
+				"Scheduler:",
+				table_size(storage._sched.at),
+				"outstanding tasks from previous state will NOT be processed."
+			)
+		end
 		---TODO: warn about unkilled threads from previous state?
 		storage._sched = {
 			tasks = {},

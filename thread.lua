@@ -9,6 +9,7 @@ require("lib.core.require").require_guard("lib.core.thread")
 local class = require("lib.core.class").class
 local counters = require("lib.core.counters")
 local event = require("lib.core.event")
+local log = require("lib.core.strace")
 
 local table_size = _G.table_size
 local pairs = _G.pairs
@@ -56,6 +57,17 @@ event.bind(
 	---@param reset_data Core.ResetData
 	function(reset_data)
 		---TODO: warn about unkilled threads from previous state?
+		if
+			storage._thread
+			and storage._thread.threads
+			and next(storage._thread.threads)
+		then
+			log.warn(
+				"Thread scheduler:",
+				table_size(storage._thread.threads),
+				"outstanding threads from previous state will be killed."
+			)
+		end
 		---@type Core.Thread.Storage
 		local initial_storage = {
 			threads = {},
@@ -248,6 +260,21 @@ event.bind(
 		data.current_bucket = current_bucket
 	end
 )
+
+event.bind("on_shutdown", function()
+	-- Kill all threads on shutdown.
+	local data = get_data()
+	for id, thread in pairs(data.threads) do
+		log.info(
+			"Threads: shutdown: killing thread ",
+			id,
+			"(",
+			thread.friendly_name or "unnamed",
+			")"
+		)
+		data.threads[id] = nil
+	end
+end)
 
 --------------------------------------------------------------------------------
 -- API

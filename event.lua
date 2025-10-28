@@ -7,6 +7,7 @@
 local require_guard = require("lib.core.require").require_guard
 require_guard("lib.core.event")
 local tlib = require("lib.core.table")
+local strace = require("lib.core.strace")
 
 local type = _G.type
 local tinsert = table.insert
@@ -44,8 +45,8 @@ local EMPTY = setmetatable({}, { __newindex = function() end })
 ---@class (exact) Core.ResetData
 ---@field public init boolean True if this is the first initialization of the mod.
 ---@field public handoff boolean True if this is a handoff for a startup/shutdown sequence.
----@field public cant_shutdown? LocalisedString[] If present, shutdown is being attempted. If you would like to veto the shutdown, insert a reason string into this list.
----@field public startup_warnings LocalisedString[] Warnings to present after startup. If an unclean shutdown left lingering state, it's a good idea to push a warning here during `on_startup`.
+---@field public veto_shutdown? LocalisedString[] If present, shutdown is being attempted. If you would like to veto the shutdown, insert a reason string into this list.
+---@field public startup_warnings? LocalisedString[] Warnings to present after startup. If an unclean shutdown left lingering state, it's a good idea to push a warning here during `on_startup`.
 
 local script_event_set = {
 	["on_init"] = true,
@@ -306,6 +307,17 @@ event.bind(
 
 event.bind("on_startup", function(reset_data)
 	-- TODO: warn if mods didn't clear dynamic binds before resetting
+	if storage._event and next(storage._event) then
+		strace.warn(
+			"Warning: dynamic event bindings exist at startup. You should clear dynamic bindings during shutdown to avoid lingering state."
+		)
+	end
+	if storage._event_subtick and next(storage._event_subtick) then
+		strace.error(
+			"ERROR: subtick event bindings exist at startup, this should be impossible."
+		)
+	end
+
 	storage._event = {} --[[@as Core.EventStorage ]]
 	storage._event_subtick = {}
 	storage._event_id = 0
