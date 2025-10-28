@@ -42,7 +42,7 @@ local EMPTY = setmetatable({}, { __newindex = function() end })
 ---@alias Core.EventBinder.NoArg fun(name: string, handler: fun(), first?: boolean)
 ---@alias Core.EventBinder Core.EventBinder.NoArg
 
----@class (exact) Core.ResetData
+---@class Core.ResetData
 ---@field public init boolean True if this is the first initialization of the mod.
 ---@field public handoff boolean True if this is a handoff for a startup/shutdown sequence.
 ---@field public veto_shutdown? LocalisedString[] If present, shutdown is being attempted. If you would like to veto the shutdown, insert a reason string into this list.
