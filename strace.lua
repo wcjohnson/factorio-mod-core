@@ -42,12 +42,19 @@ local SERPENT_ARGS = { maxlevel = 5, maxnum = 20, nocode = true }
 
 local lib = {}
 
-lib.TRACE = 10
-lib.DEBUG = 20
-lib.INFO = 30
-lib.STATS = 40
-lib.WARN = 50
-lib.ERROR = 60
+local TRACE = 10
+local DEBUG = 20
+local INFO = 30
+local STATS = 40
+local WARN = 50
+local ERROR = 60
+
+lib.TRACE = TRACE
+lib.DEBUG = DEBUG
+lib.INFO = INFO
+lib.STATS = STATS
+lib.WARN = WARN
+lib.ERROR = ERROR
 lib.MAX_LEVEL = 1000
 
 local level_to_string = {
@@ -199,12 +206,12 @@ local function strace(level, ...)
 end
 lib.strace = strace
 
-function lib.trace(...) return strace(lib.TRACE, "message", ...) end
-function lib.info(...) return strace(lib.INFO, "message", ...) end
-function lib.log(...) return strace(lib.INFO, "message", ...) end
-function lib.debug(...) return strace(lib.DEBUG, "message", ...) end
-function lib.warn(...) return strace(lib.WARN, "message", ...) end
-function lib.error(...) return strace(lib.ERROR, "message", ...) end
+function lib.trace(...) return strace(TRACE, "message", ...) end
+function lib.info(...) return strace(INFO, "message", ...) end
+function lib.log(...) return strace(INFO, "message", ...) end
+function lib.debug(...) return strace(DEBUG, "message", ...) end
+function lib.warn(...) return strace(WARN, "message", ...) end
+function lib.error(...) return strace(ERROR, "message", ...) end
 
 ---Set a global tracing handler
 ---@param new_handler? fun(...)
@@ -290,7 +297,7 @@ function lib.filter(is_whitelist, filters, ...)
 end
 
 -- Inform typechecking that _LOG_LEVEL is an integer.
-storage._LOG_LEVEL = lib.INFO
+storage._LOG_LEVEL = 0
 
 function lib.standard_log_handler(level, ...)
 	local lv = (storage and storage._LOG_LEVEL) or 10
@@ -299,6 +306,8 @@ function lib.standard_log_handler(level, ...)
 	if game then frame = game.ticks_played end
 	local cat_tbl = {
 		"[",
+		script.mod_name,
+		"::",
 		frame,
 		format_tick_relative(frame, 0),
 		level_to_string[level],
