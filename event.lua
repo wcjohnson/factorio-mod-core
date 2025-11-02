@@ -176,11 +176,6 @@ local event = {}
 ---@param first boolean? If true, the handler will be called before other handlers for the event. Use with care.
 ---@param filters? table Passed to `script.on_event` as the `filters` argument when binding to game events. NOTE: The first `filters` argument is the only one the game will see. Subsequent bindings will be against the same filters.
 function event.bind(event_names, handler, first, filters)
-	if game then
-		error(
-			"`event.bind` must be called only at the top of the control phase. use `event.dynamic_bind` instead for late or dynamic event binding."
-		)
-	end
 	for _, event_name in tlib.iter(event_names) do
 		---@cast event_name Core.EventName
 		event_name = bind_any_event(event_name, filters)
