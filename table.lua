@@ -452,4 +452,19 @@ lib.EMPTY_STRICT = setmetatable({}, {
 	__newindex = function() error("Attempt to write to EMPTY_STRICT table", 2) end,
 })
 
+---Given tables representing sets (with keys as elements and `true` as values),
+---union them onto the first input set, mutating that set in place.
+---@param dest table<any, boolean> The destination set.
+---@param ... table<any, boolean> The source sets.
+---@return table<any, boolean> dest The destination set.
+function lib.set_union(dest, ...)
+	for i = 1, select("#", ...) do
+		local src = select(i, ...)
+		for k in pairs(src) do
+			dest[k] = true
+		end
+	end
+	return dest
+end
+
 return lib
