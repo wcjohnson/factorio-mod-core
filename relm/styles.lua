@@ -412,3 +412,20 @@ styles.flib_titlebar_search_textfield = {
 	bottom_margin = 1,
 	width = 150,
 }
+
+-- RELM STYLES
+styles.relm_table_white_lines = {
+	type = "table_style",
+	horizontal_line_color = { 1, 1, 1 },
+	vertical_line_color = { 1, 1, 1 },
+	top_cell_padding = 1,
+	bottom_cell_padding = 2,
+	left_cell_padding = 3,
+	right_cell_padding = 2,
+}
+
+styles.relm_deep_frame_in_shallow_frame_stretchable = {
+	type = "frame_style",
+	parent = "deep_frame_in_shallow_frame",
+	horizontally_stretchable = "on",
+}
