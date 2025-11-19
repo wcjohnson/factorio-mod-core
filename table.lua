@@ -226,6 +226,20 @@ function lib.t_map_t(T, f)
 	return U
 end
 
+---Reduce a table to a single value by applying a reducer function.
+---@generic K, V, A
+---@param T table<K, V>
+---@param initial A The initial accumulator value.
+---@param reducer fun(acc: A, key: K, value: V): A The reducer function.
+---@return A acc The final accumulated value.
+function lib.t_reduce(T, initial, reducer)
+	local acc = initial
+	for k, v in pairs(T) do
+		acc = reducer(acc, k, v)
+	end
+	return acc
+end
+
 ---Map over the elements of an array, flattening out one level of arrays.
 ---@generic I, O
 ---@param A I[]
