@@ -38,7 +38,7 @@ local serpent_line = serpent.line
 local serpent_block = serpent.block
 local tostring = _G.tostring
 
-local SERPENT_ARGS = { maxlevel = 5, maxnum = 20, nocode = true }
+local SERPENT_ARGS = { maxlevel = 2, maxnum = 20, nocode = true }
 
 local lib = {}
 
