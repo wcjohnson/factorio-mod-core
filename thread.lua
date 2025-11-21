@@ -350,7 +350,7 @@ function Thread:kill() get_data().threads[self.id] = nil end
 function Thread:main() end
 
 ---Get a thread by ID. Returns `nil` if the thread does not exist or has been killed.
----@param id integer The ID of the thread to get.
+---@param id integer? The ID of the thread to get.
 ---@return Core.Thread? #The thread with the given ID, or `nil` if it does not exist.
 function lib.get_thread(id)
 	local data = get_data()
@@ -382,10 +382,15 @@ end
 ---Utility function for adding to a workload object.
 ---@param workload Core.Thread.Workload|nil
 ---@param qty number
+---@return number total_workload New workload total, or `qty` if `workload` is `nil`.
 function lib.add_workload(workload, qty)
 	if workload then
 		local x = workload.workload
-		workload.workload = x + qty
+		local x1 = x + qty
+		workload.workload = x1
+		return x1
+	else
+		return qty
 	end
 end
 
