@@ -1768,6 +1768,17 @@ function lib.use_effect(effect_key, callback, cleanup)
 	end
 end
 
+---Returns a handle to the currently-rendering Relm element. This can be used
+---to correctly wire up event handlers as closures. NOTE: You MUST NOT cause
+---side effects during `render` using this handle.
+---@return Relm.Handle handle A handle to the currently-rendering element.
+function lib.use_handle()
+	if not hook_node then
+		error("relm.use_handle: must be called during `render` of a Relm element.")
+	end
+	return hook_node --[[@as Relm.Handle]]
+end
+
 --------------------------------------------------------------------------------
 -- API: QUERIES
 --------------------------------------------------------------------------------
