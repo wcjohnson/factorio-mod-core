@@ -481,4 +481,23 @@ function lib.set_union(dest, ...)
 	return dest
 end
 
+---An iterator over table entries filtered by a predicate function.
+---@generic K, V
+---@param T table<K, V>
+---@param predicate fun(key: K, value: V): boolean?
+---@return fun(t: table<K, V>, k: K?): K?, V?
+---@return table<K, V>
+---@return K?
+function lib.filtered_pairs(T, predicate)
+	local function iter(t, k)
+		local v
+		k, v = next(t, k)
+		while k ~= nil and not predicate(k, v) do
+			k, v = next(t, k)
+		end
+		return k, v
+	end
+	return iter, T, nil
+end
+
 return lib
