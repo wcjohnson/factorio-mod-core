@@ -16,7 +16,7 @@ local pos_add = pos_lib.pos_add
 local round = num_lib.round
 
 ---Possible types of cursor snapping during relative blueprint placement.
----@enum bplib.SnapType
+---@enum Core.SnapType
 local SnapType = {
 	"GRID_POINT",
 	"TILE",
@@ -36,7 +36,7 @@ lib.SnapType = SnapType
 ---Snap a coordinate to the appropriate grid point or tile based on the
 ---snap type.
 ---@param coord number
----@param snap_type bplib.SnapType
+---@param snap_type Core.SnapType
 ---@return number
 local function snap_to(coord, snap_type)
 	if snap_type == SnapType.GRID_POINT then
@@ -86,7 +86,7 @@ lib.get_absolute_grid_square = get_absolute_grid_square
 ---@param length uint Total length of the axis in tiles
 ---@param target_parity 1|2 1 = odd, 2 = even
 ---@param half_pos int Position along the axis in half tiles
----@return bplib.SnapType snap_type World space cursor snapping method
+---@return Core.SnapType snap_type World space cursor snapping method
 ---@return int offset Further bbox offset adjustment along this axis
 local function compute_single_axis_snap_type(length, target_parity, half_pos)
 	local offset = 0
@@ -139,8 +139,8 @@ end
 ---@param snap_entity BlueprintEntity? Entity governing snapping, if any
 ---@param snap_entity_pos MapPosition? Transformed bpspace position of the snap entity.
 ---@param bp_rot_n int? Rotation of the blueprint in 90 degree increments.
----@return bplib.SnapType xsnap Snapping type for the X-axis.
----@return bplib.SnapType ysnap Snapping type for the Y-axis.
+---@return Core.SnapType xsnap Snapping type for the X-axis.
+---@return Core.SnapType ysnap Snapping type for the Y-axis.
 ---@return int xofs Offset to apply to the X-axis.
 ---@return int yofs Offset to apply to the Y-axis.
 function lib.get_bp_relative_snapping(
