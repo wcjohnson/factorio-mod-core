@@ -705,4 +705,17 @@ lib.HiddenTabRemover = relm.define_element({
 	end,
 })
 
+lib.ShallowSection = relm.define_element({
+	name = "ultros.ShallowSection",
+	render = function(props)
+		return {
+			lib.RtBoldLabel(props.caption),
+			Pr({
+				type = "frame",
+				style = "relm_deep_frame_in_shallow_frame_stretchable",
+			}, props.children),
+		}
+	end,
+})
+
 return lib

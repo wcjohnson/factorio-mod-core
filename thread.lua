@@ -40,6 +40,8 @@ function lib.set_strace_handler(handler) strace = handler end
 
 ---@alias Core.Thread.IdSet {[integer]: true}
 
+---@alias Core.Thread.Workload {workload: number}
+
 ---Storage table for threads.
 ---@class Core.Thread.Storage
 ---@field public threads {[integer]: Core.Thread} All threads by id.
@@ -348,7 +350,7 @@ function Thread:kill() get_data().threads[self.id] = nil end
 function Thread:main() end
 
 ---Get a thread by ID. Returns `nil` if the thread does not exist or has been killed.
----@param id integer The ID of the thread to get.
+---@param id integer? The ID of the thread to get.
 ---@return Core.Thread? #The thread with the given ID, or `nil` if it does not exist.
 function lib.get_thread(id)
 	local data = get_data()
@@ -376,5 +378,25 @@ function lib.debug_get_threads()
 	local data = get_data()
 	return data.threads, data.buckets, data.bucket_workloads
 end
+
+---Utility function for adding to a workload object.
+---@param workload Core.Thread.Workload|nil
+---@param qty number
+---@return number total_workload New workload total, or `qty` if `workload` is `nil`.
+function lib.add_workload(workload, qty)
+	if workload then
+		local x = workload.workload
+		local x1 = x + qty
+		workload.workload = x1
+		return x1
+	else
+		return qty
+	end
+end
+
+---Utility function for getting workload value from a workload object.
+---@param workload Core.Thread.Workload | nil
+---@return number workload
+function lib.get_workload(workload) return workload and workload.workload or 0 end
 
 return lib

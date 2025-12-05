@@ -226,6 +226,20 @@ function lib.t_map_t(T, f)
 	return U
 end
 
+---Reduce a table to a single value by applying a reducer function.
+---@generic K, V, A
+---@param T table<K, V>
+---@param initial A The initial accumulator value.
+---@param reducer fun(acc: A, key: K, value: V): A The reducer function.
+---@return A acc The final accumulated value.
+function lib.t_reduce(T, initial, reducer)
+	local acc = initial
+	for k, v in pairs(T) do
+		acc = reducer(acc, k, v)
+	end
+	return acc
+end
+
 ---Map over the elements of an array, flattening out one level of arrays.
 ---@generic I, O
 ---@param A I[]
@@ -451,5 +465,39 @@ lib.EMPTY = setmetatable({}, { __newindex = function() end })
 lib.EMPTY_STRICT = setmetatable({}, {
 	__newindex = function() error("Attempt to write to EMPTY_STRICT table", 2) end,
 })
+
+---Given tables representing sets (with keys as elements and `true` as values),
+---union them onto the first input set, mutating that set in place.
+---@param dest table<any, boolean> The destination set.
+---@param ... table<any, boolean> The source sets.
+---@return table<any, boolean> dest The destination set.
+function lib.set_union(dest, ...)
+	for i = 1, select("#", ...) do
+		local src = select(i, ...)
+		for k in pairs(src) do
+			dest[k] = true
+		end
+	end
+	return dest
+end
+
+---An iterator over table entries filtered by a predicate function.
+---@generic K, V
+---@param T table<K, V>
+---@param predicate fun(key: K, value: V): boolean?
+---@return fun(t: table<K, V>, k: K?): K?, V?
+---@return table<K, V>
+---@return K?
+function lib.filtered_pairs(T, predicate)
+	local function iter(t, k)
+		local v
+		k, v = next(t, k)
+		while k ~= nil and not predicate(k, v) do
+			k, v = next(t, k)
+		end
+		return k, v
+	end
+	return iter, T, nil
+end
 
 return lib

@@ -41,4 +41,21 @@ function lib.format_tick_relative(ticks, reference)
 	end
 end
 
+---Clamp a numeric value between min and max.
+---@param value number? The value to clamp.
+---@param min number The minimum value.
+---@param max number The maximum value.
+---@param default number The default value if nil.
+---@return number clamped The clamped value.
+function lib.clamp(value, min, max, default)
+	value = value or default
+	if value < min then
+		return min
+	elseif value > max then
+		return max
+	else
+		return value
+	end
+end
+
 return lib

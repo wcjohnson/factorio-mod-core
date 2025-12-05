@@ -6,6 +6,12 @@ local counters = require("lib.core.counters")
 local event = require("lib.core.event")
 local log = require("lib.core.strace")
 
+local unpack = table.unpack
+local pairs = _G.pairs
+local next = _G.next
+local type = _G.type
+local setmetatable = _G.setmetatable
+
 ---@class Core.Lib.Scheduler
 local lib = {}
 
@@ -279,5 +285,28 @@ end
 ---Set strace handler. `nil` disables tracing entirely.
 ---@param handler? fun(level: int, ...)
 function lib.set_strace_handler(handler) strace = handler end
+
+lib.register_handler("@call_method", function(task)
+	local data = task.data
+	local obj = data[1]
+	local method_name = data[2]
+	if obj then
+		local callable = obj[method_name]
+		if type(callable) == "function" then
+			callable(obj, unpack(data, 3))
+			return
+		end
+	end
+
+	return ABORT
+end)
+
+---Call a method on a serializable object at a given tick.
+---@param tick uint64
+---@param serializable_object table
+---@param method_name string
+function lib.at_method(tick, serializable_object, method_name, ...)
+	return lib.at(tick, "@call_method", { serializable_object, method_name, ... })
+end
 
 return lib

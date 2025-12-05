@@ -28,20 +28,30 @@ local function stringify(val)
 end
 lib.stringify = stringify
 
+---@param k LocalisedString
+---@param v any
 local function default_renderer(k, v)
 	return ultros.BoldLabel(k), ultros.RtMultilineLabel(stringify(v))
 end
 lib.default_renderer = default_renderer
 
----@alias Core.RelmTableRendererer fun(key: string|number, value: any, primitive_style: table): Relm.Children
+---@alias Core.RelmTableRendererer fun(key: string|number, value: any, primitive_style: table, whole_table: table): Relm.Children
 
 ---@param n_cols int Number of columns in the table. If 1, a vertical flow is used instead.
 ---@param tbl table Table to render.
 ---@param renderers {[string|number]: Core.RelmTableRendererer}? Optional renderers for specific keys.
 ---@param default Core.RelmTableRendererer? Default renderer if no specific renderer is found. If `nil`, entries without renderers are ignored.
 ---@param primdef table? Additional primitive definition fields to apply to the table or flow.
+---@param renderer_driven? boolean If true, iterate the renderers rather than the table. This preserves rendering order but misses keys with no corresponding renderer.
 ---@return Relm.Children
-function lib.render_table(n_cols, tbl, renderers, default, primdef)
+function lib.render_table(
+	n_cols,
+	tbl,
+	renderers,
+	default,
+	primdef,
+	renderer_driven
+)
 	renderers = renderers or EMPTY
 	if primdef then
 		primdef = tlib.assign({}, primdef)
@@ -50,11 +60,21 @@ function lib.render_table(n_cols, tbl, renderers, default, primdef)
 	end
 
 	local children = {}
-	for k, v in pairs(tbl) do
-		local renderer = renderers[k]
-		if (renderer == nil) and default then renderer = default end
-		if renderer then tlib.append(children, renderer(k, v, primdef)) end
+	if renderer_driven then
+		for k, renderer in pairs(renderers or EMPTY) do
+			local v = tbl[k]
+			if v ~= nil then
+				tlib.append(children, renderer(k, tbl[v], primdef, tbl))
+			end
+		end
+	else
+		for k, v in pairs(tbl) do
+			local renderer = renderers[k]
+			if (renderer == nil) and default then renderer = default end
+			if renderer then tlib.append(children, renderer(k, v, primdef, tbl)) end
+		end
 	end
+
 	if n_cols == 1 then
 		primdef.type = "flow"
 		primdef.direction = "vertical"
