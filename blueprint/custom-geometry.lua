@@ -10,7 +10,7 @@ local lib = {}
 ---[4] = Bottom offset from position to bbox edge.
 ---[5] = 2x2 snapping: required parity of X coord of final world position (1=odd, 2=even, `nil`=don't use 2x2 snapping)
 ---[6] = 2x2 snapping: required parity of Y coord of final world position (1=odd, 2=even, `nil`=don't use 2x2 snapping)
----@alias Core.DirectionalCustomEntityGeometry { [1]: int, [2]: int, [3]: int, [4]: int, [5]: int|nil, [6]: int|nil }
+---@alias Core.DirectionalCustomEntityGeometry { [1]: number, [2]: number, [3]: number, [4]: number, [5]: int|nil, [6]: int|nil }
 
 ---Snap data associated with each valid direction of an entity. Direction `0`
 ---MUST be provided and is used as a fallback for directions not provided.
@@ -102,6 +102,20 @@ function lib.get_custom_geometry(prototype_type, prototype_name, direction)
 		if not geometry then return end
 	end
 	return geometry[direction or 0] or geometry[0]
+end
+
+---Set custom geometry for all entities of a given type.
+---@param prototype_type string
+---@param geometry_table Core.CustomEntityGeometry
+function lib.set_custom_geometry_for_type(prototype_type, geometry_table)
+	custom_geometry_by_type[prototype_type] = geometry_table
+end
+
+---Set custom geometry for a specific entity by name.
+---@param prototype_name string
+---@param geometry_table Core.CustomEntityGeometry
+function lib.set_custom_geometry_for_name(prototype_name, geometry_table)
+	custom_geometry_by_name[prototype_name] = geometry_table
 end
 
 -- TODO: allow mod registration of custom geometry.
