@@ -1,4 +1,6 @@
 local floor = math.floor
+local ceil = math.ceil
+local abs = math.abs
 
 local lib = {}
 
@@ -55,6 +57,32 @@ function lib.clamp(value, min, max, default)
 		return max
 	else
 		return value
+	end
+end
+
+---If a number is very close to an integer, return that integer. Else return
+---the floor.
+---@param x number The number to floor.
+---@return number floored The floored value.
+function lib.floor_approx(x)
+	local top = ceil(x)
+	if abs(top - x) < 0.001 then
+		return top
+	else
+		return floor(x)
+	end
+end
+
+---If a number is very close to an integer, return that integer. Else return
+---the ceil.
+---@param x number The number to ceil.
+---@return number ceiled The ceiled value.
+function lib.ceil_approx(x)
+	local bot = floor(x)
+	if abs(bot - x) < 0.001 then
+		return bot
+	else
+		return ceil(x)
 	end
 end
 
