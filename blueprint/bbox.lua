@@ -7,14 +7,19 @@ local lib = {}
 local pos_lib = require("lib.core.math.pos")
 local bbox_lib = require("lib.core.math.bbox")
 local geom_lib = require("lib.core.blueprint.custom-geometry")
+local num_lib = require("lib.core.math.numeric")
 
 local pos_get = pos_lib.pos_get
 local bbox_new = bbox_lib.bbox_new
+local bbox_get = bbox_lib.bbox_get
+local bbox_set = bbox_lib.bbox_set
 local bbox_rotate_ortho = bbox_lib.bbox_rotate_ortho
 local bbox_translate = bbox_lib.bbox_translate
 local bbox_union = bbox_lib.bbox_union
 local bbox_round = bbox_lib.bbox_round
 local floor = math.floor
+local floor_approx = num_lib.floor_approx
+local ceil_approx = num_lib.ceil_approx
 local ZERO = { 0, 0 }
 
 ---Generically compute the bounding box of a blueprint entity in blueprint space.
@@ -87,7 +92,14 @@ function lib.get_blueprint_bbox(bp_entities, entity_bounding_boxes)
 		bbox_union(bpspace_bbox, ebox)
 	end
 
-	bbox_round(bpspace_bbox)
+	local l, t, r, b = bbox_get(bpspace_bbox)
+	bbox_set(
+		bpspace_bbox,
+		floor_approx(l),
+		floor_approx(t),
+		ceil_approx(r),
+		ceil_approx(b)
+	)
 
 	return bpspace_bbox, snap_index
 end
