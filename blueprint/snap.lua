@@ -84,12 +84,18 @@ local function get_absolute_grid_square(x, y, gx, gy, ox, oy)
 end
 lib.get_absolute_grid_square = get_absolute_grid_square
 
+---@param is_x_axis boolean True for X axis, false for Y axis
 ---@param length uint Total length of the axis in tiles
 ---@param target_parity 1|2 1 = odd, 2 = even
 ---@param half_pos int Position along the axis in half tiles
 ---@return Core.SnapType snap_type World space cursor snapping method
 ---@return int offset Further bbox offset adjustment along this axis
-local function compute_single_axis_snap_type(length, target_parity, half_pos)
+local function compute_single_axis_snap_type(
+	is_x_axis,
+	length,
+	target_parity,
+	half_pos
+)
 	local offset = 0
 	if floor(length) % 2 == 0 then
 		-- Center will be on grid point, meaning we are SnapType 1,3,5
@@ -109,25 +115,46 @@ local function compute_single_axis_snap_type(length, target_parity, half_pos)
 			end
 		end
 	else
-		-- I have ABSOLUTELY NO IDEA why this is needed but it works.
-		-- TODO: this was caused by faulty curved-rail geometry data.
-		-- This can be removed by changing the moduli below.
-		if half_pos > 0 then half_pos = -half_pos end
+		if half_pos < 0 then
+			strace.trace("BPLIB: SNAP: flipping half_pos")
+			half_pos = -half_pos
+		end
+		strace.trace(
+			"BPLIB: SNAP: odd length=",
+			length,
+			"mod 4=",
+			length % 4,
+			"half_pos=",
+			half_pos,
+			"mod 4=",
+			half_pos % 4,
+			"target_parity=",
+			target_parity
+		)
 		-- Center will be between grid points, meaning we are SnapType 2,4,6
 		if target_parity == 1 then
-			-- Target parity is odd.
-			if half_pos % 4 == 1 then
+			if half_pos % 4 == 0 then
+				return SnapType.ODD_TILE, offset
+			elseif half_pos % 4 == 1 then
 				-- Center of an even tile shifted by 1 half step
 				-- gives an odd grid point.
-				return SnapType.EVEN_TILE, offset
-			else
+				return SnapType.EVEN_TILE, 1
+			elseif half_pos % 4 == 2 then
 				return SnapType.ODD_TILE, offset
+			else
+				-- half_pos % 4 == 3
+				return SnapType.EVEN_TILE, 0
 			end
 		else
-			if half_pos % 4 == 1 then
-				return SnapType.ODD_TILE, offset
-			else
+			if half_pos % 4 == 0 then
 				return SnapType.EVEN_TILE, offset
+			elseif half_pos % 4 == 1 then
+				return SnapType.ODD_TILE, offset
+			elseif half_pos % 4 == 2 then
+				return SnapType.EVEN_TILE, offset
+			else
+				-- half_pos % 4 == 3
+				return SnapType.ODD_TILE, offset
 			end
 		end
 	end
@@ -174,6 +201,13 @@ function lib.get_bp_relative_snapping(
 		snap_target_parity[1], snap_target_parity[2] =
 			snap_target_parity[2], snap_target_parity[1]
 	end
+
+	-- Compute number of half integer steps from origin to controlling snap
+	-- entity pos.
+	local cx, cy = (l + r) / 2, (t + b) / 2
+	local spos = pos_new(snap_entity_pos)
+	pos_add(spos, -1, { cx, cy })
+
 	strace.trace(
 		"BPLIB: snap target parity for entity '",
 		snap_entity.name,
@@ -183,20 +217,26 @@ function lib.get_bp_relative_snapping(
 		snap_target_parity[1],
 		",",
 		snap_target_parity[2],
-		")"
+		"). Distance to origin is",
+		spos
 	)
 
-	-- Compute number of half integer steps from origin to controlling snap
-	-- entity pos.
-	local cx, cy = (l + r) / 2, (t + b) / 2
-	local spos = pos_new(snap_entity_pos)
-	pos_add(spos, -1, { cx, cy })
 	spos[1] = round(spos[1] / 0.5, 1)
 	spos[2] = round(spos[2] / 0.5, 1)
 
+	strace.trace(
+		"BPLIB: snap entity rounded half-tile distance to origin is (",
+		spos[1],
+		",",
+		spos[2],
+		")"
+	)
+
 	-- Find center parity that yields desired parity at snap entity position.
-	xsnap, xofs = compute_single_axis_snap_type(w, snap_target_parity[1], spos[1])
-	ysnap, yofs = compute_single_axis_snap_type(h, snap_target_parity[2], spos[2])
+	xsnap, xofs =
+		compute_single_axis_snap_type(true, w, snap_target_parity[1], spos[1])
+	ysnap, yofs =
+		compute_single_axis_snap_type(false, h, snap_target_parity[2], spos[2])
 
 	return xsnap, ysnap, xofs, yofs
 end
