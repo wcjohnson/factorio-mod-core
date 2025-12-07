@@ -12,9 +12,14 @@ local lib = {}
 
 local floor = math.floor
 local bbox_get = bbox_lib.bbox_get
+local pos_get = pos_lib.pos_get
 local pos_new = pos_lib.pos_new
 local pos_add = pos_lib.pos_add
 local round = num_lib.round
+local ZERO = { 0, 0 }
+local pos_rotate_ortho = pos_lib.pos_rotate_ortho
+local pos_set = pos_lib.pos_set
+local floor_approx = num_lib.floor_approx
 
 ---Possible types of cursor snapping during relative blueprint placement.
 ---@enum Core.SnapType
@@ -276,6 +281,192 @@ function lib.get_bp_relative_snapping(
 		compute_single_axis_snap_type(false, h, snap_target_parity[2], spos[2])
 
 	return xsnap, ysnap, xofs, yofs
+end
+
+local function get_snap_base(bbox, pos)
+	local l, t, r, b = bbox_get(bbox)
+	local x, y = pos_get(pos)
+	-- Base x coord
+	local dx_parity = floor(r - l) % 2
+	if dx_parity == 0 then
+		x = floor(x + 0.5)
+	else
+		x = floor(x) + 0.5
+	end
+	local dy_parity = floor(b - t) % 2
+	if dy_parity == 0 then
+		y = floor(y + 0.5)
+	else
+		y = floor(y) + 0.5
+	end
+	return x, y
+end
+
+local function get_candidate_snap_points(snap_base_x, snap_base_y)
+	local x, y = snap_base_x, snap_base_y
+	return {
+		{ x, y },
+		{ x - 1, y },
+		{ x, y - 1 },
+		{ x + 1, y },
+		{ x, y + 1 },
+		{ x - 1, y - 1 },
+		{ x + 1, y - 1 },
+		{ x - 1, y + 1 },
+		{ x + 1, y + 1 },
+	}
+end
+
+-- TODO: This is a copypasta to avoid circular deps. Refactor later.
+local function get_blueprint_entity_pos(
+	bp_entity,
+	bp_center,
+	bp_rot_n,
+	flip_horizontal,
+	flip_vertical
+)
+	-- Get bpspace position
+	local epos = pos_new(bp_entity.position)
+	-- Move to central frame of reference
+	pos_add(epos, -1, bp_center)
+	-- Apply flip
+	local rx, ry = pos_get(epos)
+	if flip_horizontal then rx = -rx end
+	if flip_vertical then ry = -ry end
+	pos_set(epos, rx, ry)
+	-- Apply blueprint rotation
+	pos_rotate_ortho(epos, ZERO, -bp_rot_n)
+	return epos
+end
+
+---@param snap_point MapPosition
+---@param snap_entity_pos MapPosition
+local function is_valid_snap_point(
+	snap_point,
+	snap_entity_pos,
+	snap_parity_x,
+	snap_parity_y
+)
+	local epos = pos_new(snap_entity_pos)
+	pos_add(epos, 1, snap_point)
+	local ex, ey = pos_get(epos)
+	ex = floor_approx(ex)
+	ey = floor_approx(ey)
+	return (ex % 2) == snap_parity_x and (ey % 2) == snap_parity_y
+end
+
+---@param snap_entity BlueprintEntity
+local function get_snap_entity_geometry(
+	snap_entity,
+	bp_center,
+	bp_rot_n,
+	flip_horizontal,
+	flip_vertical
+)
+	local proto = prototypes.entity[snap_entity.name]
+	local snap_table =
+		geom_lib.get_custom_geometry(proto.type, proto.name, snap_entity.direction)
+	if not snap_table then
+		-- XXX: this should never happen
+		error(
+			"LOGIC ERROR: No custom geometry for snap entity " .. snap_entity.name
+		)
+	end
+	local snap_parity_x, snap_parity_y = snap_table[5], snap_table[6]
+	-- Convert to mod 2 arithmetic
+	snap_parity_x = (snap_parity_x == 2) and 0 or 1
+	snap_parity_y = (snap_parity_y == 2) and 0 or 1
+	-- Swap x and y parities if the blueprint is rotated.
+	if bp_rot_n % 2 == 1 then
+		snap_parity_x, snap_parity_y = snap_parity_y, snap_parity_x
+	end
+	local snap_entity_pos = get_blueprint_entity_pos(
+		snap_entity,
+		bp_center,
+		bp_rot_n,
+		flip_horizontal,
+		flip_vertical
+	)
+	return snap_entity_pos, snap_parity_x, snap_parity_y
+end
+
+---Find the closest valid snap point from a list of candidates.
+---@param cursor_pos MapPosition
+---@param candidates MapPosition[]
+---@param entity_pos MapPosition
+---@param parity_x 0|1
+---@param parity_y 0|1
+local function find_closest_valid_snap_point(
+	cursor_pos,
+	candidates,
+	entity_pos,
+	parity_x,
+	parity_y
+)
+	local dist = math.huge
+	local best = nil
+	local px, py = pos_get(cursor_pos)
+	for i = 1, #candidates do
+		local candidate = candidates[i]
+		if is_valid_snap_point(candidate, entity_pos, parity_x, parity_y) then
+			rendering.draw_rectangle({
+				color = { r = 1, g = 1, b = 1, a = 1 },
+				width = 1,
+				filled = true,
+				left_top = { candidate[1] - 0.25, candidate[2] - 0.25 },
+				right_bottom = { candidate[1] + 0.25, candidate[2] + 0.25 },
+				surface = game.surfaces[1],
+				time_to_live = 1800,
+			})
+			local cx, cy = pos_get(candidate)
+			local dx, dy = cx - px, cy - py
+			local candidate_dist = math.sqrt(dx * dx + dy * dy)
+			if candidate_dist < dist then
+				dist = candidate_dist
+				best = candidate
+			end
+		end
+	end
+	return best
+end
+
+---@param cursor_pos MapPosition Cursor position in world space.
+---@param bbox BoundingBox Transformed bpspace bbox.
+---@param snap_entity BlueprintEntity|nil Entity governing snapping, if any
+---@param bp_center? MapPosition Blueprint center in bpspace.
+---@param bp_rot_n? int Blueprint rotation in 90 degree increments.
+---@param flip_horizontal? boolean?
+---@param flip_vertical? boolean?
+---@return MapPosition|nil snap_point The snap point to use.
+function lib.find_snap_point(
+	cursor_pos,
+	bbox,
+	snap_entity,
+	bp_center,
+	bp_rot_n,
+	flip_horizontal,
+	flip_vertical
+)
+	local x, y = get_snap_base(bbox, cursor_pos)
+	if snap_entity then
+		local candidates = get_candidate_snap_points(x, y)
+		local snap_entity_pos, parity_x, parity_y = get_snap_entity_geometry(
+			snap_entity,
+			bp_center,
+			bp_rot_n,
+			flip_horizontal,
+			flip_vertical
+		)
+		return find_closest_valid_snap_point(
+			cursor_pos,
+			candidates,
+			snap_entity_pos,
+			parity_x,
+			parity_y
+		)
+	else
+		return { x, y }
+	end
 end
 
 return lib
