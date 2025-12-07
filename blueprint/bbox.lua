@@ -92,6 +92,8 @@ function lib.get_blueprint_bbox(bp_entities, entity_bounding_boxes)
 		bbox_union(bpspace_bbox, ebox)
 	end
 
+	-- NEW ROUNDING
+
 	local l, t, r, b = bbox_get(bpspace_bbox)
 	bbox_set(
 		bpspace_bbox,
@@ -100,6 +102,10 @@ function lib.get_blueprint_bbox(bp_entities, entity_bounding_boxes)
 		ceil_approx(r),
 		ceil_approx(b)
 	)
+
+	-- OLD ROUNDING
+
+	-- bbox_round(bpspace_bbox)
 
 	return bpspace_bbox, snap_index
 end

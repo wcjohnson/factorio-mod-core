@@ -6,6 +6,7 @@
 local pos_lib = require("lib.core.math.pos")
 local bbox_lib = require("lib.core.math.bbox")
 local snap_lib = require("lib.core.blueprint.snap")
+local strace = require("lib.core.strace")
 
 local floor = math.floor
 local pos_get = pos_lib.pos_get
@@ -26,6 +27,7 @@ local bbox_flip_vert = bbox_lib.bbox_flip_vert
 local get_bp_relative_snapping = snap_lib.get_bp_relative_snapping
 local snap_to = snap_lib.snap_to
 local get_absolute_grid_square = snap_lib.get_absolute_grid_square
+local SnapType = snap_lib.SnapType
 
 local ZERO = { 0, 0 }
 
@@ -112,6 +114,21 @@ local function get_blueprint_world_positions(
 		})
 	end
 
+	strace.trace(
+		"get_blueprint_world_positions: bp_center=",
+		bp_center,
+		", bbox=",
+		bbox,
+		", bbox_size=(",
+		r - l,
+		", ",
+		b - t,
+		"), placement_position=",
+		position,
+		", rotation=",
+		rotation
+	)
+
 	-- Grid snapping
 	local placement_bbox = bbox_new(bbox)
 	if snap then
@@ -180,9 +197,35 @@ local function get_blueprint_world_positions(
 				snap_entity_pos,
 				bp_rot_n
 			)
+			strace.trace(
+				"BPLIB: snap governed by custom geometry for entity index ",
+				snap_index,
+				"'",
+				snap_entity.name,
+				"': snap types (",
+				SnapType[xst or ""],
+				",",
+				SnapType[yst or ""],
+				"), offsets (",
+				xso,
+				",",
+				yso,
+				")"
+			)
 		else
 			-- Compute relative snapping based on bbox dimensions only (1x1 snapping)
 			xst, yst, xso, yso = get_bp_relative_snapping(placement_bbox, nil)
+			strace.trace(
+				"BPLIB: snap governed by bbox only: snap types (",
+				SnapType[xst or ""],
+				", ",
+				SnapType[yst or ""],
+				"), offsets (",
+				xso,
+				", ",
+				yso,
+				")"
+			)
 		end
 		bbox_translate(placement_bbox, 1, xso, yso)
 

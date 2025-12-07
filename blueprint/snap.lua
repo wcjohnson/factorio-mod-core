@@ -6,6 +6,7 @@ local bbox_lib = require("lib.core.math.bbox")
 local pos_lib = require("lib.core.math.pos")
 local geom_lib = require("lib.core.blueprint.custom-geometry")
 local num_lib = require("lib.core.math.numeric")
+local strace = require("lib.core.strace")
 
 local lib = {}
 
@@ -109,10 +110,9 @@ local function compute_single_axis_snap_type(length, target_parity, half_pos)
 		end
 	else
 		-- I have ABSOLUTELY NO IDEA why this is needed but it works.
-		if half_pos > 0 then
-			half_pos = -half_pos
-			offset = 1
-		end
+		-- TODO: this was caused by faulty curved-rail geometry data.
+		-- This can be removed by changing the moduli below.
+		if half_pos > 0 then half_pos = -half_pos end
 		-- Center will be between grid points, meaning we are SnapType 2,4,6
 		if target_parity == 1 then
 			-- Target parity is odd.
@@ -174,6 +174,17 @@ function lib.get_bp_relative_snapping(
 		snap_target_parity[1], snap_target_parity[2] =
 			snap_target_parity[2], snap_target_parity[1]
 	end
+	strace.trace(
+		"BPLIB: snap target parity for entity '",
+		snap_entity.name,
+		"' in direction",
+		snap_entity.direction,
+		"is (",
+		snap_target_parity[1],
+		",",
+		snap_target_parity[2],
+		")"
+	)
 
 	-- Compute number of half integer steps from origin to controlling snap
 	-- entity pos.
