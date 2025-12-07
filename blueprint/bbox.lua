@@ -63,7 +63,7 @@ end
 ---entity within the blueprint that will cause implied snapping for relative
 ---placement, if any.
 ---@param bp_entities BlueprintEntity[] A *nonempty* set of blueprint entities.
----@param entity_bounding_boxes? BoundingBox[] If provided, will be filled with the bounding boxes of each entity by index.
+---@param entity_bounding_boxes? BoundingBox[] If provided, will be filled with the bounding boxes of each entity by index. NOTE: this may not be a strict array (i.e. some indices may be nil) if some entities are ignored.
 ---@return BoundingBox bbox The bounding box of the blueprint in blueprint space
 ---@return uint? snap_index The index of the entity that causes implied snapping, if any.
 function lib.get_blueprint_bbox(bp_entities, entity_bounding_boxes)
@@ -82,6 +82,9 @@ function lib.get_blueprint_bbox(bp_entities, entity_bounding_boxes)
 			bp_entity.direction
 		)
 
+		-- Skip entities whose bbox should be ignored.
+		if geom and geom[7] then goto continue end
+
 		-- Detect entities which cause implied snapping of the blueprint.
 		if snap_index == nil and geom and geom[5] then snap_index = i end
 
@@ -90,6 +93,8 @@ function lib.get_blueprint_bbox(bp_entities, entity_bounding_boxes)
 			or default_bbox(bp_entity, eproto)
 		if entity_bounding_boxes then entity_bounding_boxes[i] = ebox end
 		bbox_union(bpspace_bbox, ebox)
+
+		::continue::
 	end
 
 	-- NEW ROUNDING

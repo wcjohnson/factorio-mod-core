@@ -10,7 +10,8 @@ local lib = {}
 ---[4] = Bottom offset from position to bbox edge.
 ---[5] = 2x2 snapping: required parity of X coord of final world position (1=odd, 2=even, `nil`=don't use 2x2 snapping)
 ---[6] = 2x2 snapping: required parity of Y coord of final world position (1=odd, 2=even, `nil`=don't use 2x2 snapping)
----@alias Core.DirectionalCustomEntityGeometry { [1]: number, [2]: number, [3]: number, [4]: number, [5]: int|nil, [6]: int|nil }
+---[7] = If present and truthy, ignore this entity for bbox purposes.
+---@alias Core.DirectionalCustomEntityGeometry { [1]: number, [2]: number, [3]: number, [4]: number, [5]: int|nil, [6]: int|nil, [7]: boolean|nil }
 
 ---Snap data associated with each valid direction of an entity. Direction `0`
 ---MUST be provided and is used as a fallback for directions not provided.
