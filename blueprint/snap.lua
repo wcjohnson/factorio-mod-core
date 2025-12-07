@@ -97,64 +97,101 @@ local function compute_single_axis_snap_type(
 	half_pos
 )
 	local offset = 0
-	if floor(length) % 2 == 0 then
+	local int_length = floor(length)
+	local half_pos_mod_4 = half_pos % 4
+
+	if int_length % 2 == 0 then
+		-- BLUEPRINT IS EVEN SIZE ALONG THIS AXIS
 		-- Center will be on grid point, meaning we are SnapType 1,3,5
+		--
+		-- This case seems to be relatively straightforward.
 		if target_parity == 1 then
 			-- Target parity is odd. If we are a multiple of 4 halfsteps away,
 			-- our parity must also be odd.
-			if half_pos % 4 == 0 then
+			if half_pos_mod_4 == 0 then
 				return SnapType.ODD_GRID_POINT, offset
 			else
 				return SnapType.EVEN_GRID_POINT, offset
 			end
 		else
-			if half_pos % 4 == 0 then
+			if half_pos_mod_4 == 0 then
 				return SnapType.EVEN_GRID_POINT, offset
 			else
 				return SnapType.ODD_GRID_POINT, offset
 			end
 		end
 	else
+		-- BLUEPRINT IS ODD SIZE ALONG THIS AXIS
+		-- Center will be between grid points, meaning we are SnapType 2,4,6
+		--
+		-- Tbh I have no idea why this works. I derived it by testing a number
+		-- of "evil" blueprints in game and tweaking until I got the right answers.
+		--
+		-- The essential idea is counting the number of half-tile steps to the
+		-- entity that needs to be snapped, and then making sure the snap point
+		-- ends up giving the target entity the desired parity. Since we're
+		-- working with two-tile snapping, half-steps mod 4 should be the key
+		-- deciding factor.
+		--
+		-- However, half of this stuff makes no sense. Why does the total length
+		-- mod 4 matter? Why do I need an offset at all? Why do i have to flip
+		-- things when the position is negative? (left/above the center of bpspace?)
+		-- I have absolutely no idea.
+		local length_mod_4 = int_length % 4
+		local different_mod_4 = (half_pos_mod_4 ~= length_mod_4)
+		local SAME_OFFSET = 1
+		local DIFFERENT_OFFSET = 0
+
+		-- Why?????
 		if half_pos < 0 then
-			strace.trace("BPLIB: SNAP: flipping half_pos")
+			strace.trace("BPLIB: SNAP: flipping half_pos and offsets")
 			half_pos = -half_pos
+			SAME_OFFSET = 0
+			DIFFERENT_OFFSET = 1
 		end
+
 		strace.trace(
 			"BPLIB: SNAP: odd length=",
 			length,
 			"mod 4=",
-			length % 4,
+			length_mod_4,
 			"half_pos=",
 			half_pos,
 			"mod 4=",
-			half_pos % 4,
+			half_pos_mod_4,
 			"target_parity=",
 			target_parity
 		)
-		-- Center will be between grid points, meaning we are SnapType 2,4,6
+
+		-- Why?????
+		local ODD_TILE, EVEN_TILE =
+			length_mod_4 == 1 and SnapType.ODD_TILE or SnapType.EVEN_TILE,
+			length_mod_4 == 1 and SnapType.EVEN_TILE or SnapType.ODD_TILE
+
 		if target_parity == 1 then
-			if half_pos % 4 == 0 then
-				return SnapType.ODD_TILE, offset
-			elseif half_pos % 4 == 1 then
+			-- We want the destination coordinate to have odd parity.
+			if half_pos_mod_4 == 0 then
+				return ODD_TILE, 0
+			elseif half_pos_mod_4 == 1 then
 				-- Center of an even tile shifted by 1 half step
 				-- gives an odd grid point.
-				return SnapType.EVEN_TILE, 1
-			elseif half_pos % 4 == 2 then
-				return SnapType.ODD_TILE, offset
+				return EVEN_TILE, different_mod_4 and DIFFERENT_OFFSET or SAME_OFFSET
+			elseif half_pos_mod_4 == 2 then
+				return ODD_TILE, 0
 			else
 				-- half_pos % 4 == 3
-				return SnapType.EVEN_TILE, 0
+				return EVEN_TILE, different_mod_4 and DIFFERENT_OFFSET or SAME_OFFSET
 			end
 		else
-			if half_pos % 4 == 0 then
-				return SnapType.EVEN_TILE, offset
-			elseif half_pos % 4 == 1 then
-				return SnapType.ODD_TILE, offset
-			elseif half_pos % 4 == 2 then
-				return SnapType.EVEN_TILE, offset
+			if half_pos_mod_4 == 0 then
+				return EVEN_TILE, offset
+			elseif half_pos_mod_4 == 1 then
+				return ODD_TILE, offset
+			elseif half_pos_mod_4 == 2 then
+				return EVEN_TILE, offset
 			else
 				-- half_pos % 4 == 3
-				return SnapType.ODD_TILE, offset
+				return ODD_TILE, offset
 			end
 		end
 	end
