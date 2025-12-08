@@ -181,7 +181,6 @@ local function get_blueprint_world_positions(
 		bbox_rotate_ortho(placement_bbox, ZERO, -bp_rot_n)
 
 		local snap_entity = bp_entities[snap_index]
-		local xst, yst, xso, yso
 		local snap_point = snap_lib.find_snap_point(
 			position,
 			placement_bbox,
@@ -189,7 +188,8 @@ local function get_blueprint_world_positions(
 			bp_center,
 			bp_rot_n,
 			flip_horizontal,
-			flip_vertical
+			flip_vertical,
+			debug_render_surface
 		)
 		if not snap_point then
 			error(
@@ -253,15 +253,15 @@ local function get_blueprint_world_positions(
 			-- Debug: blue square at computed entity pos.
 			-- This should overlap precisely with the green square drawn by the F4
 			-- debug mode when showing entity positions.
-			-- rendering.draw_rectangle({
-			-- 	color = { r = 0, g = 0, b = 1, a = 1 },
-			-- 	width = 1,
-			-- 	filled = true,
-			-- 	left_top = { epos[1] - 0.2, epos[2] - 0.2 },
-			-- 	right_bottom = { epos[1] + 0.2, epos[2] + 0.2 },
-			-- 	surface = debug_render_surface,
-			-- 	time_to_live = 1800,
-			-- })
+			rendering.draw_rectangle({
+				color = { r = 0, g = 0, b = 1, a = 1 },
+				width = 1,
+				filled = true,
+				left_top = { epos[1] - 0.2, epos[2] - 0.2 },
+				right_bottom = { epos[1] + 0.2, epos[2] + 0.2 },
+				surface = debug_render_surface,
+				time_to_live = 1800,
+			})
 		end
 
 		bp_to_world_pos[i] = epos
