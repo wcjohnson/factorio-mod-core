@@ -7,64 +7,21 @@ local pos_lib = require("lib.core.math.pos")
 local geom_lib = require("lib.core.blueprint.custom-geometry")
 local num_lib = require("lib.core.math.numeric")
 local strace = require("lib.core.strace")
+local table_lib = require("lib.core.table")
 
 local lib = {}
 
 local floor = math.floor
 local bbox_get = bbox_lib.bbox_get
+local pos_get = pos_lib.pos_get
 local pos_new = pos_lib.pos_new
 local pos_add = pos_lib.pos_add
 local round = num_lib.round
-
----Possible types of cursor snapping during relative blueprint placement.
----@enum Core.SnapType
-local SnapType = {
-	"GRID_POINT",
-	"TILE",
-	"EVEN_GRID_POINT",
-	"EVEN_TILE",
-	"ODD_GRID_POINT",
-	"ODD_TILE",
-	GRID_POINT = 1,
-	TILE = 2,
-	EVEN_GRID_POINT = 3,
-	EVEN_TILE = 4,
-	ODD_GRID_POINT = 5,
-	ODD_TILE = 6,
-}
-lib.SnapType = SnapType
-
----Snap a coordinate to the appropriate grid point or tile based on the
----snap type.
----@param coord number
----@param snap_type Core.SnapType
----@return number
-local function snap_to(coord, snap_type)
-	if snap_type == SnapType.GRID_POINT then
-		return floor(coord + 0.5)
-	elseif snap_type == SnapType.TILE then
-		return floor(coord) + 0.5
-	elseif snap_type == SnapType.EVEN_GRID_POINT then
-		local snapped = floor(coord)
-		if snapped % 2 ~= 0 then snapped = snapped + 1 end
-		return snapped
-	elseif snap_type == SnapType.EVEN_TILE then
-		local snapped = floor(coord)
-		if snapped % 2 ~= 0 then snapped = snapped - 1 end
-		return snapped + 0.5
-	elseif snap_type == SnapType.ODD_GRID_POINT then
-		local snapped = floor(coord)
-		if snapped % 2 == 0 then snapped = snapped + 1 end
-		return snapped
-	elseif snap_type == SnapType.ODD_TILE then
-		local snapped = floor(coord)
-		if snapped % 2 == 0 then snapped = snapped - 1 end
-		return snapped + 0.5
-	end
-
-	return coord -- no snapping applied.
-end
-lib.snap_to = snap_to
+local ZERO = { 0, 0 }
+local pos_rotate_ortho = pos_lib.pos_rotate_ortho
+local pos_set = pos_lib.pos_set
+local floor_approx = num_lib.floor_approx
+local EMPTY = table_lib.EMPTY
 
 ---In an absolute grid with squares sized `gx`x`gy` and a global offset of
 ---`(ox, oy)`, find the square containing the point `(x, y)` and return its
@@ -84,198 +41,308 @@ local function get_absolute_grid_square(x, y, gx, gy, ox, oy)
 end
 lib.get_absolute_grid_square = get_absolute_grid_square
 
----@param is_x_axis boolean True for X axis, false for Y axis
----@param length uint Total length of the axis in tiles
----@param target_parity 1|2 1 = odd, 2 = even
----@param half_pos int Position along the axis in half tiles
----@return Core.SnapType snap_type World space cursor snapping method
----@return int offset Further bbox offset adjustment along this axis
-local function compute_single_axis_snap_type(
-	is_x_axis,
-	length,
-	target_parity,
-	half_pos
-)
-	local offset = 0
-	local int_length = floor(length)
-	local half_pos_mod_4 = half_pos % 4
-
-	if int_length % 2 == 0 then
-		-- BLUEPRINT IS EVEN SIZE ALONG THIS AXIS
-		-- Center will be on grid point, meaning we are SnapType 1,3,5
-		--
-		-- This case seems to be relatively straightforward.
-		if target_parity == 1 then
-			-- Target parity is odd. If we are a multiple of 4 halfsteps away,
-			-- our parity must also be odd.
-			if half_pos_mod_4 == 0 then
-				return SnapType.ODD_GRID_POINT, offset
-			else
-				return SnapType.EVEN_GRID_POINT, offset
-			end
-		else
-			if half_pos_mod_4 == 0 then
-				return SnapType.EVEN_GRID_POINT, offset
-			else
-				return SnapType.ODD_GRID_POINT, offset
-			end
-		end
-	else
-		-- BLUEPRINT IS ODD SIZE ALONG THIS AXIS
-		-- Center will be between grid points, meaning we are SnapType 2,4,6
-		--
-		-- Tbh I have no idea why this works. I derived it by testing a number
-		-- of "evil" blueprints in game and tweaking until I got the right answers.
-		--
-		-- The essential idea is counting the number of half-tile steps to the
-		-- entity that needs to be snapped, and then making sure the snap point
-		-- ends up giving the target entity the desired parity. Since we're
-		-- working with two-tile snapping, half-steps mod 4 should be the key
-		-- deciding factor.
-		--
-		-- However, half of this stuff makes no sense. Why does the total length
-		-- mod 4 matter? Why do I need an offset at all? Why do i have to flip
-		-- things when the position is negative? (left/above the center of bpspace?)
-		-- I have absolutely no idea.
-		local length_mod_4 = int_length % 4
-		local different_mod_4 = (half_pos_mod_4 ~= length_mod_4)
-		local SAME_OFFSET = 1
-		local DIFFERENT_OFFSET = 0
-
-		-- Why?????
-		if half_pos < 0 then
-			strace.trace("BPLIB: SNAP: flipping half_pos and offsets")
-			half_pos = -half_pos
-			SAME_OFFSET = 0
-			DIFFERENT_OFFSET = 1
-		end
-
-		strace.trace(
-			"BPLIB: SNAP: odd length=",
-			length,
-			"mod 4=",
-			length_mod_4,
-			"half_pos=",
-			half_pos,
-			"mod 4=",
-			half_pos_mod_4,
-			"target_parity=",
-			target_parity
-		)
-
-		-- Why?????
-		local ODD_TILE, EVEN_TILE =
-			length_mod_4 == 1 and SnapType.ODD_TILE or SnapType.EVEN_TILE,
-			length_mod_4 == 1 and SnapType.EVEN_TILE or SnapType.ODD_TILE
-
-		if target_parity == 1 then
-			-- We want the destination coordinate to have odd parity.
-			if half_pos_mod_4 == 0 then
-				return ODD_TILE, 0
-			elseif half_pos_mod_4 == 1 then
-				-- Center of an even tile shifted by 1 half step
-				-- gives an odd grid point.
-				return EVEN_TILE, different_mod_4 and DIFFERENT_OFFSET or SAME_OFFSET
-			elseif half_pos_mod_4 == 2 then
-				return ODD_TILE, 0
-			else
-				-- half_pos % 4 == 3
-				return EVEN_TILE, different_mod_4 and DIFFERENT_OFFSET or SAME_OFFSET
-			end
-		else
-			if half_pos_mod_4 == 0 then
-				return EVEN_TILE, offset
-			elseif half_pos_mod_4 == 1 then
-				return ODD_TILE, offset
-			elseif half_pos_mod_4 == 2 then
-				return EVEN_TILE, offset
-			else
-				-- half_pos % 4 == 3
-				return ODD_TILE, offset
-			end
-		end
-	end
+local function get_box_parity(bbox)
+	local l, t, r, b = bbox_get(bbox)
+	local px = floor(r - l) % 2
+	local py = floor(b - t) % 2
+	return px, py
 end
 
----Get information on how the cursor position needs to be snapped when placing
----a blueprint with relative positioning.
----@param bbox BoundingBox Transformed bpspace bbox.
----@param snap_entity BlueprintEntity? Entity governing snapping, if any
----@param snap_entity_pos MapPosition? Transformed bpspace position of the snap entity.
----@param bp_rot_n int? Rotation of the blueprint in 90 degree increments.
----@return Core.SnapType xsnap Snapping type for the X-axis.
----@return Core.SnapType ysnap Snapping type for the Y-axis.
----@return int xofs Offset to apply to the X-axis.
----@return int yofs Offset to apply to the Y-axis.
-function lib.get_bp_relative_snapping(
-	bbox,
-	snap_entity,
-	snap_entity_pos,
-	bp_rot_n
+local function get_snap_base(bbox, pos)
+	local dx_parity, dy_parity = get_box_parity(bbox)
+	local x, y = pos_get(pos)
+	if dx_parity == 0 then
+		x = floor(x + 0.5)
+	else
+		x = floor(x) + 0.5
+	end
+	if dy_parity == 0 then
+		y = floor(y + 0.5)
+	else
+		y = floor(y) + 0.5
+	end
+	return x, y
+end
+
+-- TODO: This is a copypasta to avoid circular deps. Refactor later.
+local function get_blueprint_entity_pos(
+	bp_entity,
+	bp_center,
+	bp_rot_n,
+	flip_horizontal,
+	flip_vertical
 )
-	local l, t, r, b = bbox_get(bbox)
-	local w, h = r - l, b - t
-	local xsnap, ysnap = SnapType.GRID_POINT, SnapType.GRID_POINT
-	local xofs, yofs = 0, 0
-	if not snap_entity then
-		-- Simple snapping to tile or grid point.
-		if floor(w) % 2 ~= 0 then xsnap = SnapType.TILE end
-		if floor(h) % 2 ~= 0 then ysnap = SnapType.TILE end
-		return xsnap, ysnap, xofs, yofs
+	-- Get bpspace position
+	local epos = pos_new(bp_entity.position)
+	-- Move to central frame of reference
+	pos_add(epos, -1, bp_center)
+	-- Apply flip
+	local rx, ry = pos_get(epos)
+	if flip_horizontal then rx = -rx end
+	if flip_vertical then ry = -ry end
+	pos_set(epos, rx, ry)
+	-- Apply blueprint rotation
+	pos_rotate_ortho(epos, ZERO, -bp_rot_n)
+	return epos
+end
+
+local function is_valid_box_snap_point(snap_point, box_parity_x, box_parity_y)
+	-- 0 = point, 1 = tile center
+	local point_parity_x = floor(snap_point[1] * 2) % 2
+	local point_parity_y = floor(snap_point[2] * 2) % 2
+	return point_parity_x == box_parity_x and point_parity_y == box_parity_y
+end
+
+---@param snap_point MapPosition
+---@param snap_entity_pos MapPosition
+local function is_valid_entity_snap_point(
+	snap_point,
+	snap_entity_pos,
+	snap_parity_x,
+	snap_parity_y
+)
+	local epos = pos_new(snap_entity_pos)
+	pos_add(epos, 1, snap_point)
+	local ex, ey = pos_get(epos)
+	ex = floor_approx(ex)
+	ey = floor_approx(ey)
+	return (ex % 2) == snap_parity_x and (ey % 2) == snap_parity_y
+end
+
+-- Empirical snapping offset table.
+-- Mod4 cases: (1,1), (3,1), (1,3), (3,3)
+local points_and_offsets = {
+	-- Ring 0
+	{ { 0, 0 }, { 1, 1 }, { 0, 0 } },
+	-- Ring 1
+	{ { 0.5, 0 }, { 0, 1 }, { -0.5, 0 } },
+	{ { 0, 0.5 }, { 1, 0 }, { 0, -0.5 } },
+	-- Ring 2
+	{ { 1, 0 }, { 0, 1 }, { 0, 0 } },
+	{ { 0.5, 0.5 }, { 1, 1 }, { 0.5, 0.5 } },
+	{ { 0, 1 }, { 1, 0 }, { 0, 0 } },
+	-- Ring 3
+	{ { 1.5, 0 }, { 0, 1 }, { -0.5, 0 } },
+	{ { 1, 0.5 }, { 0, 1 }, { 0, 0.5 } },
+	{ { 0.5, 1 }, { 1, 0 }, { 0.5, 0 } },
+	{ { 0, 1.5 }, { 1, 0 }, { 0, 0.5 } },
+	-- Ring 4
+	{
+		{ 1.5, 0.5 },
+		{ 0, 1 },
+		{ 0.5, 0.5 },
+		{ { 0, 0 }, { 0, 1 }, { 0, 1 }, { 0, 1 } },
+		{ { 0.5, -0.5 }, { 0.5, 0.5 }, { 0.5, 0.5 }, { 0.5, 0.5 } },
+	},
+	{ { 1, 1 }, { 0, 0 }, { 0, 0 } },
+	{
+		{ 0.5, 1.5 },
+		{ 1, 1 },
+		{ 0.5, -0.5 },
+		{ { 1, 1 }, { 1, 0 }, { 1, 1 }, { 1, 1 } },
+		{ { 0.5, -0.5 }, { 0.5, 0.5 }, { 0.5, -0.5 }, { 0.5, -0.5 } },
+	},
+	-- Ring 5
+	{ { 1.5, 1 }, { 0, 0 }, { 0.5, 0 } },
+	{ { 1, 1.5 }, { 0, 0 }, { 0, 0.5 } },
+	-- Ring 6
+	{
+		{ 1.5, 1.5 },
+		{ 0, 1 },
+		{ 0.5, -0.5 },
+		{
+			{ 1, 1 },
+			{ 1, 0 },
+			{ 0, 1 },
+			{ 1, 1 },
+		},
+		{
+			{ 0.5, -0.5 },
+			{ -0.5, 0.5 },
+			{ 0.5, -0.5 },
+			{ -0.5, -0.5 },
+		},
+	},
+}
+
+---@param w integer Width of blueprint bbox in tiles
+---@param h integer Height of blueprint bbox in tiles
+---@return MapPosition offset
+---@return MapPosition nudge
+---@return MapPosition snap_point
+local function find_global_grid_offset(
+	w,
+	h,
+	snap_entity_pos,
+	snap_parity_x,
+	snap_parity_y
+)
+	local box_parity_x, box_parity_y = w % 2, h % 2
+	for i = 1, #points_and_offsets do
+		local pain = points_and_offsets[i]
+		local point = pain[1]
+		local offset = pain[2]
+		local nudge = pain[3] or EMPTY
+		local offsets = pain[4]
+		local nudges = pain[5]
+		local valid_box = is_valid_box_snap_point(point, box_parity_x, box_parity_y)
+		local valid_entity = is_valid_entity_snap_point(
+			point,
+			snap_entity_pos,
+			snap_parity_x,
+			snap_parity_y
+		)
+		if valid_box and valid_entity then
+			-- Mod-4 subcases
+			local w_mod_4, h_mod_4 = w % 4, h % 4
+			local case = nil
+			if w_mod_4 == 1 and h_mod_4 == 1 then
+				case = 1
+			elseif w_mod_4 == 3 and h_mod_4 == 1 then
+				case = 2
+			elseif w_mod_4 == 1 and h_mod_4 == 3 then
+				case = 3
+			elseif w_mod_4 == 3 and h_mod_4 == 3 then
+				case = 4
+			end
+			if case and offsets then offset = offsets[case] end
+			if case and nudges then nudge = nudges[case] end
+			local grid_offset_x, grid_offset_y = offset[1], offset[2]
+			local nudge_x, nudge_y = nudge[1] or 0, nudge[2] or 0
+			strace.trace(
+				"BPLIB: SNAP: point",
+				point,
+				"is valid with offset",
+				grid_offset_x,
+				grid_offset_y,
+				"nudge",
+				nudge_x,
+				nudge_y,
+				"mod4s",
+				w_mod_4,
+				h_mod_4,
+				case
+			)
+			-- game.print({
+			-- 	"",
+			-- 	"Point is ",
+			-- 	serpent.line(point),
+			-- 	" size is ",
+			-- 	w,
+			-- 	"x",
+			-- 	h,
+			-- 	" (mod4 case ",
+			-- 	case,
+			-- 	": ",
+			-- 	w_mod_4,
+			-- 	",",
+			-- 	h_mod_4,
+			-- 	") global grid offset is ",
+			-- 	grid_offset_x,
+			-- 	",",
+			-- 	grid_offset_y,
+			-- 	" nudge is ",
+			-- 	nudge_x,
+			-- 	",",
+			-- 	nudge_y,
+			-- })
+			return { grid_offset_x, grid_offset_y }, { nudge_x, nudge_y }, point
+		end
 	end
 
-	-- Find snap entity
+	-- This should never happen.
+	error("LOGIC ERROR: No valid global grid offset found.")
+end
+
+---@param snap_entity BlueprintEntity
+local function get_snap_entity_geometry(
+	snap_entity,
+	bp_center,
+	bp_rot_n,
+	flip_horizontal,
+	flip_vertical
+)
 	local proto = prototypes.entity[snap_entity.name]
 	local snap_table =
 		geom_lib.get_custom_geometry(proto.type, proto.name, snap_entity.direction)
 	if not snap_table then
 		-- XXX: this should never happen
-		return xsnap, ysnap, xofs, yofs
+		error(
+			"LOGIC ERROR: No custom geometry for snap entity " .. snap_entity.name
+		)
 	end
-	local snap_target_parity = { snap_table[5], snap_table[6] }
+	local snap_parity_x, snap_parity_y = snap_table[5], snap_table[6]
+	-- Convert to mod 2 arithmetic
+	snap_parity_x = (snap_parity_x == 2) and 0 or 1
+	snap_parity_y = (snap_parity_y == 2) and 0 or 1
+	-- Swap x and y parities if the blueprint is rotated.
 	if bp_rot_n % 2 == 1 then
-		-- Swap x and y parities if the blueprint is rotated.
-		snap_target_parity[1], snap_target_parity[2] =
-			snap_target_parity[2], snap_target_parity[1]
+		snap_parity_x, snap_parity_y = snap_parity_y, snap_parity_x
 	end
-
-	-- Compute number of half integer steps from origin to controlling snap
-	-- entity pos.
-	local cx, cy = (l + r) / 2, (t + b) / 2
-	local spos = pos_new(snap_entity_pos)
-	pos_add(spos, -1, { cx, cy })
-
-	strace.trace(
-		"BPLIB: snap target parity for entity '",
-		snap_entity.name,
-		"' in direction",
-		snap_entity.direction,
-		"is (",
-		snap_target_parity[1],
-		",",
-		snap_target_parity[2],
-		"). Distance to origin is",
-		spos
+	local snap_entity_pos = get_blueprint_entity_pos(
+		snap_entity,
+		bp_center,
+		bp_rot_n,
+		flip_horizontal,
+		flip_vertical
 	)
+	return snap_entity_pos, snap_parity_x, snap_parity_y
+end
 
-	spos[1] = round(spos[1] / 0.5, 1)
-	spos[2] = round(spos[2] / 0.5, 1)
-
-	strace.trace(
-		"BPLIB: snap entity rounded half-tile distance to origin is (",
-		spos[1],
-		",",
-		spos[2],
-		")"
-	)
-
-	-- Find center parity that yields desired parity at snap entity position.
-	xsnap, xofs =
-		compute_single_axis_snap_type(true, w, snap_target_parity[1], spos[1])
-	ysnap, yofs =
-		compute_single_axis_snap_type(false, h, snap_target_parity[2], spos[2])
-
-	return xsnap, ysnap, xofs, yofs
+---@param cursor_pos MapPosition Cursor position in world space.
+---@param bbox BoundingBox Transformed bpspace bbox.
+---@param snap_entity BlueprintEntity|nil Entity governing snapping, if any
+---@param bp_center? MapPosition Blueprint center in bpspace.
+---@param bp_rot_n? int Blueprint rotation in 90 degree increments.
+---@param flip_horizontal? boolean?
+---@param flip_vertical? boolean?
+---@param debug_render_surface LuaSurface? If given, debug graphics will be drawn on the given surface showing blueprint placement computations.
+---@return MapPosition snap_point The snap point to use.
+function lib.find_snap_point(
+	cursor_pos,
+	bbox,
+	snap_entity,
+	bp_center,
+	bp_rot_n,
+	flip_horizontal,
+	flip_vertical,
+	debug_render_surface
+)
+	if snap_entity then
+		local x, y = pos_get(cursor_pos)
+		local l, t, r, b = bbox_get(bbox)
+		local w = floor_approx(r - l)
+		local h = floor_approx(b - t)
+		local snap_entity_pos, parity_x, parity_y = get_snap_entity_geometry(
+			snap_entity,
+			bp_center,
+			bp_rot_n,
+			flip_horizontal,
+			flip_vertical
+		)
+		local offset, nudge =
+			find_global_grid_offset(w, h, snap_entity_pos, parity_x, parity_y)
+		local gl, gt, gr, gb =
+			get_absolute_grid_square(x, y, 2, 2, offset[1], offset[2])
+		if debug_render_surface then
+			-- Debug: draw green box around computed absolute gridsquare
+			rendering.draw_rectangle({
+				color = { r = 0, g = 1, b = 0, a = 1 },
+				width = 3,
+				filled = false,
+				left_top = { gl, gt },
+				right_bottom = { gr, gb },
+				surface = debug_render_surface,
+				time_to_live = 1800,
+			})
+		end
+		local square_center = pos_new((gl + gr) / 2, (gt + gb) / 2)
+		if nudge then pos_add(square_center, 1, nudge) end
+		return square_center
+	else
+		local x, y = get_snap_base(bbox, cursor_pos)
+		return { x, y }
+	end
 end
 
 return lib

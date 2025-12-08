@@ -181,55 +181,23 @@ local function get_blueprint_world_positions(
 		bbox_rotate_ortho(placement_bbox, ZERO, -bp_rot_n)
 
 		local snap_entity = bp_entities[snap_index]
-		local xst, yst, xso, yso
-		if snap_entity then
-			-- Transform snap entity position and compute snapping based on that
-			local snap_entity_pos = get_blueprint_entity_pos(
-				snap_entity,
-				bp_center,
-				bp_rot_n,
-				flip_horizontal,
-				flip_vertical
-			)
-			xst, yst, xso, yso = get_bp_relative_snapping(
-				placement_bbox,
-				snap_entity,
-				snap_entity_pos,
-				bp_rot_n
-			)
-			strace.trace(
-				"BPLIB: snap governed by custom geometry for entity index ",
-				snap_index,
-				"'",
-				snap_entity.name,
-				"': snap types (",
-				SnapType[xst or ""],
-				",",
-				SnapType[yst or ""],
-				"), offsets (",
-				xso,
-				",",
-				yso,
-				")"
-			)
-		else
-			-- Compute relative snapping based on bbox dimensions only (1x1 snapping)
-			xst, yst, xso, yso = get_bp_relative_snapping(placement_bbox, nil)
-			strace.trace(
-				"BPLIB: snap governed by bbox only: snap types (",
-				SnapType[xst or ""],
-				", ",
-				SnapType[yst or ""],
-				"), offsets (",
-				xso,
-				", ",
-				yso,
-				")"
+		local snap_point = snap_lib.find_snap_point(
+			position,
+			placement_bbox,
+			snap_entity,
+			bp_center,
+			bp_rot_n,
+			flip_horizontal,
+			flip_vertical,
+			debug_render_surface
+		)
+		if not snap_point then
+			error(
+				"LOGIC ERROR: could not find valid snap point for blueprint placement"
 			)
 		end
-		bbox_translate(placement_bbox, 1, xso, yso)
 
-		local sx, sy = snap_to(x, xst), snap_to(y, yst)
+		local sx, sy = pos_get(snap_point)
 		if debug_render_surface then
 			-- Debug: blue circle at snap point
 			rendering.draw_circle({
