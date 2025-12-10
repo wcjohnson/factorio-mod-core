@@ -110,12 +110,23 @@ local function is_valid_entity_snap_point(
 end
 
 -- Empirical snapping offset table.
--- Mod4 cases: (1,1), (3,1), (1,3), (3,3)
+-- Mod4 cases:
+-- OddxOdd (1,1), (3,1), (1,3), (3,3)
+-- EvenxOdd or OddxEven: (1,e), (3,e) or (e,1), (e,3)
 local points_and_offsets = {
 	-- Ring 0
 	{ { 0, 0 }, { 1, 1 }, { 0, 0 } },
 	-- Ring 1
-	{ { 0.5, 0 }, { 0, 1 }, { -0.5, 0 } },
+	{
+		{ 0.5, 0 },
+		{ 0, 1 },
+		{ -0.5, 0 },
+		{ { 0, 1 }, { 0, 0 } },
+		{
+			{ -0.5, 0 },
+			{ -0.5, 0 },
+		},
+	},
 	{ { 0, 0.5 }, { 1, 0 }, { 0, -0.5 } },
 	-- Ring 2
 	{ { 1, 0 }, { 0, 1 }, { 0, 0 } },
@@ -128,7 +139,13 @@ local points_and_offsets = {
 	},
 	{ { 0, 1 }, { 1, 0 }, { 0, 0 } },
 	-- Ring 3
-	{ { 1.5, 0 }, { 0, 1 }, { -0.5, 0 } },
+	{
+		{ 1.5, 0 },
+		{ 0, 1 },
+		{ -0.5, 0 },
+		{ { 0, 1 }, { 0, 1 } },
+		{ { 0.5, 0 }, { -0.5, 0 } },
+	},
 	{ { 1, 0.5 }, { 0, 1 }, { 0, 0.5 } },
 	{ { 0.5, 1 }, { 1, 0 }, { 0.5, 0 } },
 	{ { 0, 1.5 }, { 1, 0 }, { 0, 0.5 } },
@@ -210,6 +227,14 @@ local function find_global_grid_offset(
 				case = 3
 			elseif w_mod_4 == 3 and h_mod_4 == 3 then
 				case = 4
+			elseif box_parity_x == 0 and h_mod_4 == 1 then
+				case = 1
+			elseif box_parity_x == 0 and h_mod_4 == 3 then
+				case = 2
+			elseif box_parity_y == 0 and w_mod_4 == 1 then
+				case = 1
+			elseif box_parity_y == 0 and w_mod_4 == 3 then
+				case = 2
 			end
 			if case and offsets then offset = offsets[case] end
 			if case and nudges then nudge = nudges[case] end

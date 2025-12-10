@@ -180,7 +180,18 @@ local function get_blueprint_world_positions(
 		if flip_vertical then bbox_flip_vert(placement_bbox, 0) end
 		bbox_rotate_ortho(placement_bbox, ZERO, -bp_rot_n)
 
-		local snap_entity = bp_entities[snap_index]
+		local snap_entity = nil
+		if snap_index then
+			snap_entity = bp_entities[snap_index]
+			strace.trace(
+				"BPLIB: SNAP: relative snapping using entity index ",
+				snap_index,
+				" (",
+				snap_entity and snap_entity.name or "nil",
+				snap_entity and snap_entity.direction or "nil",
+				")"
+			)
+		end
 		local snap_point = snap_lib.find_snap_point(
 			position,
 			placement_bbox,
