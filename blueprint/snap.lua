@@ -109,27 +109,56 @@ local function is_valid_entity_snap_point(
 	return (ex % 2) == snap_parity_x and (ey % 2) == snap_parity_y
 end
 
--- Empirical snapping offset table.
--- Mod4 cases:
--- OddxOdd (1,1), (3,1), (1,3), (3,3)
--- EvenxOdd or OddxEven: (1,e), (3,e) or (e,1), (e,3)
+----
+-- EMPIRICAL 2x2 SNAPPING OFFSET TABLE
+--
+-- Given a valid point, relative to the origin, to which the blueprint
+-- may snap, this empirical table gives (1) which 2x2 global grid to
+-- snap to, in the form of an offset (0,0), (0,1), (1,0), or (1,1)
+-- and (2) the nudge value to offset the center point within the snapped
+-- grid square.
+--
+-- The 16 valid snap points are classified in rings of (taxicab) distance
+-- from the origin.
+--
+-- The fields are:
+-- [1] = Valid snap point relative to the world origin.
+-- [2] = Generic global grid offset to use for this point.
+-- [3] = Generic nudge to use for this point.
+-- [4] = Mod4 grid offsets for this point, if any.
+-- [5] = Mod4 nudges for this point, if any.
+--
+-- For odd-parity snap points (i.e. points that snap onto a tile rather
+-- than the grid), the snapping further depends, for some reason, on the
+-- size mod 4 of the blueprint's bounding box along the odd axis.
+-- These cases are broken down in the fourth and fifth entries.
+-- Cases use the following mapping from mod-4 size to case index:
+--
+-- For OddxOdd bboxes: (1,1), (3,1), (1,3), (3,3)
+-- For EvenxOdd or OddxEven bboxes: (1,e), (3,e) or (e,1), (e,3)
+----
 local points_and_offsets = {
-	-- Ring 0
+	---- RING 0
+	-- Point 0,0
 	{ { 0, 0 }, { 1, 1 }, { 0, 0 } },
-	-- Ring 1
+	---- RING 1
+	-- Point 0.5,0
 	{
 		{ 0.5, 0 },
 		{ 0, 1 },
 		{ -0.5, 0 },
-		{ { 0, 1 }, { 0, 0 } },
+		{ { 0, 1 }, { 1, 1 } },
 		{
 			{ -0.5, 0 },
-			{ -0.5, 0 },
+			{ 0.5, 0 },
 		},
 	},
+	-- Point 0,0.5
 	{ { 0, 0.5 }, { 1, 0 }, { 0, -0.5 } },
-	-- Ring 2
+	---- RING 2
+	-- Point 1,0
 	{ { 1, 0 }, { 0, 1 }, { 0, 0 } },
+	-- Point 0.5,0.5
 	{
 		{ 0.5, 0.5 },
 		{ 1, 1 },
@@ -137,8 +166,10 @@ local points_and_offsets = {
 		{ { 1, 1 }, { 1, 0 }, { 1, 1 }, { 1, 1 } },
 		{ { 0.5, 0.5 }, { 0.5, -0.5 }, { 0.5, 0.5 }, { 0.5, 0.5 } },
 	},
+	-- Point 0,1
 	{ { 0, 1 }, { 1, 0 }, { 0, 0 } },
-	-- Ring 3
+	---- RING 3
+	-- Point 1.5,0
 	{
 		{ 1.5, 0 },
 		{ 0, 1 },
@@ -146,10 +177,14 @@ local points_and_offsets = {
 		{ { 0, 1 }, { 0, 1 } },
 		{ { 0.5, 0 }, { -0.5, 0 } },
 	},
+	-- Point 1,0.5
 	{ { 1, 0.5 }, { 0, 1 }, { 0, 0.5 } },
+	-- Point 0.5,1
 	{ { 0.5, 1 }, { 1, 0 }, { 0.5, 0 } },
+	-- Point 0,1.5
 	{ { 0, 1.5 }, { 1, 0 }, { 0, 0.5 } },
-	-- Ring 4
+	---- RING 4
+	-- Point 1.5,0.5
 	{
 		{ 1.5, 0.5 },
 		{ 0, 1 },
@@ -157,7 +192,9 @@ local points_and_offsets = {
 		{ { 0, 0 }, { 0, 1 }, { 0, 1 }, { 0, 1 } },
 		{ { 0.5, -0.5 }, { 0.5, 0.5 }, { 0.5, 0.5 }, { 0.5, 0.5 } },
 	},
+	-- Point 1,1
 	{ { 1, 1 }, { 0, 0 }, { 0, 0 } },
+	-- Point 0.5,1.5
 	{
 		{ 0.5, 1.5 },
 		{ 1, 1 },
@@ -165,10 +202,13 @@ local points_and_offsets = {
 		{ { 1, 1 }, { 1, 0 }, { 0, 1 }, { 1, 1 } },
 		{ { 0.5, -0.5 }, { 0.5, 0.5 }, { -0.5, -0.5 }, { 0.5, -0.5 } },
 	},
-	-- Ring 5
+	---- RING 5
+	-- Point 1.5,1
 	{ { 1.5, 1 }, { 0, 0 }, { 0.5, 0 } },
+	-- Point 1,1.5
 	{ { 1, 1.5 }, { 0, 0 }, { 0, 0.5 } },
-	-- Ring 6
+	---- RING 6
+	-- Point 1.5,1.5
 	{
 		{ 1.5, 1.5 },
 		{ 0, 1 },
