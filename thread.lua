@@ -384,6 +384,15 @@ end
 ---@param qty number
 ---@return number total_workload New workload total, or `qty` if `workload` is `nil`.
 function lib.add_workload(workload, qty)
+	-- Check for NAN
+	if (not qty) or (qty ~= qty) then
+		if workload then
+			return workload.workload
+		else
+			return 0
+		end
+	end
+
 	if workload then
 		local x = workload.workload
 		local x1 = x + qty
