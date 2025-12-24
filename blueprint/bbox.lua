@@ -16,6 +16,7 @@ local bbox_set = bbox_lib.bbox_set
 local bbox_rotate_ortho = bbox_lib.bbox_rotate_ortho
 local bbox_translate = bbox_lib.bbox_translate
 local bbox_union = bbox_lib.bbox_union
+local bbox_add_point = bbox_lib.bbox_add_point
 local bbox_round = bbox_lib.bbox_round
 local floor = math.floor
 local floor_approx = num_lib.floor_approx
@@ -66,12 +67,15 @@ end
 ---@param entity_bounding_boxes? BoundingBox[] If provided, will be filled with the bounding boxes of each entity by index. NOTE: this may not be a strict array (i.e. some indices may be nil) if some entities are ignored.
 ---@return BoundingBox bbox The bounding box of the blueprint in blueprint space
 ---@return uint? snap_index The index of the entity that causes implied snapping, if any.
+---@return BoundingBox pos_bbox The bounding box encompassing the positions of the BP entities, without regard to their individual bounding boxes.
 function lib.get_blueprint_bbox(bp_entities, entity_bounding_boxes)
 	local snap_index = nil
 
 	local e1x, e1y = pos_get(bp_entities[1].position)
 	---@type BoundingBox
 	local bpspace_bbox = { { e1x, e1y }, { e1x, e1y } }
+	---@type BoundingBox
+	local pos_bbox = { { e1x, e1y }, { e1x, e1y } }
 
 	for i = 1, #bp_entities do
 		local bp_entity = bp_entities[i]
@@ -94,6 +98,9 @@ function lib.get_blueprint_bbox(bp_entities, entity_bounding_boxes)
 		if entity_bounding_boxes then entity_bounding_boxes[i] = ebox end
 		bbox_union(bpspace_bbox, ebox)
 
+		-- Update posbox
+		bbox_add_point(pos_bbox, bp_entity.position)
+
 		::continue::
 	end
 
@@ -112,7 +119,7 @@ function lib.get_blueprint_bbox(bp_entities, entity_bounding_boxes)
 
 	-- bbox_round(bpspace_bbox)
 
-	return bpspace_bbox, snap_index
+	return bpspace_bbox, snap_index, pos_bbox
 end
 
 return lib

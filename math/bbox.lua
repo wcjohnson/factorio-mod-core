@@ -143,6 +143,24 @@ local function bbox_union(bbox1, bbox2)
 end
 lib.bbox_union = bbox_union
 
+---Extend a bbox to contain the given point. Does nothing if the point is
+---already in the box.
+---@param bbox BoundingBox
+---@param x_or_point number|MapPosition X-coordinate of point.
+---@param y? number Y-coordinate of point.
+---@return BoundingBox bbox The given bbox appropriately mutated.
+local function bbox_add_point(bbox, x_or_point, y)
+	local x = x_or_point
+	if type(x_or_point) == "table" then
+		x, y = pos_get(x_or_point)
+	end
+	if (not x) or not y then return bbox end
+	---@cast x number
+	local l, t, r, b = bbox_get(bbox)
+	return bbox_set(bbox, min(l, x), min(l, y), max(l, x), max(l, y))
+end
+lib.bbox_add_point = bbox_add_point
+
 ---Grow a bbox by the given amount in the given ortho direction.
 ---@param bbox BoundingBox
 ---@param dir defines.direction
