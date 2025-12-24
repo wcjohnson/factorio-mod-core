@@ -418,7 +418,7 @@ for _, props in pairs(lib.class_properties) do
 		or props.H_hand
 		or dih_encode(props.dihedral_r_order, 0, 0)
 	for i = 0, 7 do
-		local _, r, s = dihedral.elt(8, i)
+		local _, r, s = dihedral.elt(4, i)
 		if s == 0 then
 			props.blueprint_transforms[i] = dih_power(R, r)
 		else
