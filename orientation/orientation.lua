@@ -268,7 +268,7 @@ end
 ---@return Core.Orientation
 function lib.apply(O, transform)
 	local class, dih = decode(O)
-	return encode(class, dih_product(dih, transform))
+	return encode(class, dih_product(transform, dih))
 end
 
 ---Apply a blueprint D8 transform to this orientation
@@ -278,7 +278,7 @@ end
 function lib.apply_blueprint(O, index)
 	local class, dih = decode(O)
 	local transform = props[class].blueprint_transforms[index]
-	return encode(class, dih_product(dih, transform))
+	return encode(class, dih_product(transform, dih))
 end
 
 ---Extract the orientation of an entity or ghost.
