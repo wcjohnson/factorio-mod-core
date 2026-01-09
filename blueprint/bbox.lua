@@ -21,6 +21,7 @@ local bbox_round = bbox_lib.bbox_round
 local floor = math.floor
 local floor_approx = num_lib.floor_approx
 local ceil_approx = num_lib.ceil_approx
+local floor_tile = num_lib.floor_tile
 local ZERO = { 0, 0 }
 
 ---Generically compute the bounding box of a blueprint entity in blueprint space.
@@ -114,6 +115,11 @@ function lib.get_blueprint_bbox(bp_entities, entity_bounding_boxes)
 		ceil_approx(r),
 		ceil_approx(b)
 	)
+
+	l, t, r, b = bbox_get(pos_bbox)
+	bbox_set(pos_bbox, floor_tile(l), floor_tile(t), floor_tile(r), floor_tile(b))
+
+	bbox_union(bpspace_bbox, pos_bbox)
 
 	-- OLD ROUNDING
 
