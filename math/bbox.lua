@@ -157,7 +157,7 @@ local function bbox_add_point(bbox, x_or_point, y)
 	if (not x) or not y then return bbox end
 	---@cast x number
 	local l, t, r, b = bbox_get(bbox)
-	return bbox_set(bbox, min(l, x), min(l, y), max(l, x), max(l, y))
+	return bbox_set(bbox, min(l, x), min(t, y), max(r, x), max(b, y))
 end
 lib.bbox_add_point = bbox_add_point
 
