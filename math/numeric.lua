@@ -64,7 +64,7 @@ end
 ---the floor.
 ---@param x number The number to floor.
 ---@return number floored The floored value.
-function lib.floor_approx(x)
+local function floor_approx(x)
 	local top = ceil(x)
 	if abs(top - x) < 0.001 then
 		return top
@@ -72,6 +72,7 @@ function lib.floor_approx(x)
 		return floor(x)
 	end
 end
+lib.floor_approx = floor_approx
 
 ---If a number is very close to an integer, return that integer. Else return
 ---the ceil.
@@ -85,5 +86,8 @@ function lib.ceil_approx(x)
 		return ceil(x)
 	end
 end
+
+-- Round floorwards to the nearest Factorio tile.
+function lib.floor_tile(x) return floor_approx(x - 0.5) end
 
 return lib
