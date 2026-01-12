@@ -106,7 +106,7 @@ function lib.get_blueprint_bbox(bp_entities, entity_bounding_boxes)
 	end
 
 	-- NEW ROUNDING
-
+	-- Round to entity bbox
 	local l, t, r, b = bbox_get(bpspace_bbox)
 	bbox_set(
 		bpspace_bbox,
@@ -116,6 +116,9 @@ function lib.get_blueprint_bbox(bp_entities, entity_bounding_boxes)
 		ceil_approx(b)
 	)
 
+	-- Then round to tile-floor of position bbox if needed. This picks up
+	-- cases where sub-entities positioned off tile centers extend the effective
+	-- bounding box.
 	l, t, r, b = bbox_get(pos_bbox)
 	bbox_set(pos_bbox, floor_tile(l), floor_tile(t), floor_tile(r), floor_tile(b))
 
