@@ -99,7 +99,7 @@ function lib.get_blueprint_bbox(bp_entities, entity_bounding_boxes)
 		if entity_bounding_boxes then entity_bounding_boxes[i] = ebox end
 		bbox_union(bpspace_bbox, ebox)
 
-		-- Update posbox
+		-- Update posbox to contain the entity's position.
 		bbox_add_point(pos_bbox, bp_entity.position)
 
 		::continue::
@@ -121,12 +121,7 @@ function lib.get_blueprint_bbox(bp_entities, entity_bounding_boxes)
 	-- bounding box.
 	l, t, r, b = bbox_get(pos_bbox)
 	bbox_set(pos_bbox, floor_tile(l), floor_tile(t), floor_tile(r), floor_tile(b))
-
 	bbox_union(bpspace_bbox, pos_bbox)
-
-	-- OLD ROUNDING
-
-	-- bbox_round(bpspace_bbox)
 
 	return bpspace_bbox, snap_index, pos_bbox
 end
