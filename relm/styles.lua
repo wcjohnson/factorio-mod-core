@@ -322,7 +322,7 @@ styles.flib_subheader_horizontal_line = {
 	border = {
 		border_width = 8,
 		horizontal_line = {
-			filename = "__flib__/graphics/subheader-line.png",
+			filename = _G.__RELM_GRAPHICS_PATH__ .. "subheader-line.png",
 			size = { 1, 8 },
 		},
 	},
