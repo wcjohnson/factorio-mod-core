@@ -6,7 +6,7 @@ local styles = data.raw["gui-style"].default
 
 -- SLOT BUTTON STYLES
 
-local slot_tileset = "__flib__/graphics/slots.png"
+local slot_tileset = _G.__RELM_GRAPHICS_PATH__ .. "slots.png"
 
 local function gen_slot(x, y, default_offset)
 	default_offset = default_offset or 0
