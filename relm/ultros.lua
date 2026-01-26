@@ -23,13 +23,25 @@ end
 
 ---Return `then_node` if `cond` is true, otherwise return an empty table. Useful for
 ---conditional Relm rendering.
----@param cond boolean|nil
+---@param cond any
 ---@param then_node Relm.Children
 function lib.If(cond, then_node)
 	if cond then
 		return then_node
 	else
 		return empty
+	end
+end
+
+---Return `then_node` if `cond` is true, otherwise return `else_node`.
+---@param cond any
+---@param then_node Relm.Children
+---@param else_node Relm.Children?
+function lib.IfElse(cond, then_node, else_node)
+	if cond then
+		return then_node
+	else
+		return else_node
 	end
 end
 
@@ -286,13 +298,13 @@ lib.Titlebar = relm.define_element({
 				style = "frame_title",
 				ignored_by_interaction = true,
 			}),
-			Pr({
+			props.draggable and Pr({
 				ref = props.drag_handle_ref,
 				type = "empty-widget",
 				style = "flib_titlebar_drag_handle",
 			}),
 			lib.CallIf(props.decoration, props.decoration, props),
-			lib.CloseButton(),
+			props.closable and lib.CloseButton(),
 		})
 	end,
 })
@@ -300,6 +312,8 @@ lib.Titlebar = relm.define_element({
 lib.WindowFrame = relm.define_element({
 	name = "WindowFrame",
 	render = function(props)
+		local closable = true
+		if props.closable == false then closable = false end
 		local window_ref, drag_handle_ref
 		local function set_window(ref)
 			window_ref = ref
@@ -315,6 +329,8 @@ lib.WindowFrame = relm.define_element({
 		end
 		local children = concat({
 			lib.Titlebar({
+				draggable = true,
+				closable = closable,
 				caption = props.caption,
 				drag_handle_ref = set_drag_handle,
 				decoration = props.decoration,
@@ -324,6 +340,21 @@ lib.WindowFrame = relm.define_element({
 			{ ref = set_window, type = "frame", direction = "vertical" },
 			children
 		)
+	end,
+})
+
+lib.FixedWindowFrame = relm.define_element({
+	name = "FixedWindowFrame",
+	render = function(props)
+		local children = concat({
+			lib.Titlebar({
+				draggable = false,
+				closable = props.closable,
+				caption = props.caption,
+				decoration = props.decoration,
+			}),
+		}, props.children)
+		return Pr({ type = "frame", direction = "vertical" }, children)
 	end,
 })
 
