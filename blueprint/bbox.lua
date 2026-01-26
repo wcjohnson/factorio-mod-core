@@ -80,7 +80,8 @@ function lib.get_blueprint_bbox(bp_entities, entity_bounding_boxes)
 
 	for i = 1, #bp_entities do
 		local bp_entity = bp_entities[i]
-		local eproto = prototypes.entity[bp_entity.name]
+		local ename = bp_entity.name
+		local eproto = prototypes.entity[ename]
 		local geom = geom_lib.get_custom_geometry(
 			eproto.type,
 			eproto.name,
