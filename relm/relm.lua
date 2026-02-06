@@ -1297,9 +1297,12 @@ local function vmsg_broadcast(vnode, payload, resent)
 	return barrier_wrap(vmsg_broadcast_impl, vnode, payload, resent)
 end
 
----Common state management for render hooks.
----@param wants_state boolean
----@param wants_transient boolean
+---Set up state management for a render hook. Should be called precisely once
+---per hook per render. Returns the hook state and transient state if requested.
+---@param wants_state boolean If `true`, the hook will have a state object that is stored in `storage`. This data must be serializable and will be saved with the savegame.
+---@param wants_transient boolean If `true` the hook will have transient data that exists only in the current Lua state. This data can be any Lua value but is NOT persisted during save games. This is useful for things like cleanup functions that can't be serialized, however it must be reconstructed on every render.
+---@return table? state The hook state object, or `nil` if `wants_state` is falsy
+---@return table? transient The hook transient object, or `nil` if `wants_transient` is falsy
 local function setup_hook(wants_state, wants_transient)
 	hook_num = hook_num + 1
 	local node = hook_node --[[@as Relm.Internal.VNode]]
@@ -1540,6 +1543,7 @@ function lib.root_destroy(id)
 	if not relm_state then return end
 	local root = relm_state.roots[id]
 	if not root then return end
+	-- XXX: defer this
 	enter_side_effect_barrier()
 	vprune(root.vtree_root)
 	exit_side_effect_barrier()
