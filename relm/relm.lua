@@ -12,6 +12,8 @@ local pairs = _G.pairs
 ---@class Relm.Lib
 local lib = {}
 
+local EMPTY = setmetatable({}, { __newindex = function() end })
+
 --------------------------------------------------------------------------------
 -- FACTORIO STUFF
 -- If they change something in factorio look here first for what needs updated
@@ -203,6 +205,10 @@ local STYLE_KEYS = {
 
 ---@alias Relm.Value boolean|int|number|string
 
+---@alias Relm.RefFn fun(elem: LuaGuiElement, handle: Relm.Handle)
+
+---@alias Relm.ManualPaintFn fun(elem: LuaGuiElement, props: Relm.Props)
+
 ---@alias Relm.Props {children?: Relm.Children, [string|int]:any}
 
 ---@alias Relm.State string|number|int|boolean|table|nil
@@ -264,7 +270,7 @@ local registry = {}
 ---@field public index? uint Index in parent node
 ---@field public parent? Relm.Internal.VNode Parent of this node.
 ---@field public hooks? table<uint, any> Hook data for this node, if it has hooks.
----@field public root_id? Relm.RootId Exists only on a root, and contains the root id.
+---@field public root_id Relm.RootId Contains the root id of the vtree containing this node.
 
 ---@class (exact) Relm.Internal.PaintContext
 ---@field index uint Current real child being examined
@@ -324,6 +330,51 @@ local vapply
 local vhydrate
 
 --------------------------------------------------------------------------------
+-- INTERNAL TRANSIENT STATE
+--------------------------------------------------------------------------------
+
+-- State of hooks during render
+-- MP SAFETY: these are all reset in `normalized_render` and are restricted
+-- to the context of a Lua callstack.
+---Currently hooking node.
+---@type Relm.Internal.VNode?
+local hook_node = nil
+---Current hook number within the node's rendering
+local hook_num = 0
+
+---Whether we are in a hydrating render.
+local render_is_hydrating = false
+
+---Removed keys on primitive nodes. We must set these to `nil` when
+---painting if we reuse the node.
+---TODO: this must be reset with render state or it will become MP-unsafe
+local removed_keys = setmetatable({}, { __mode = "k" })
+
+-- Render stats
+-- MP SAFETY: These are all reset and recounted on a paint cycle, which should
+-- be one frame.
+local optimae = 0
+local pessimae = 0
+local root_touched = 0
+local elements = 0
+
+-- Side effect and deferred rendering states
+-- MULTIPLAYER SAFETY: `enter_barrier` and `exit_barrier` must ALWAYS be
+-- called on the same frame, otherwise there will be desyncs.
+
+---Depth to which side effect barriers have been entered. If >0, side effects ---are banned until the outermost barrier is exited.
+local barrier_count = 0
+---Set of dirty roots that need to be visited on deferred rendering pass.
+---Values are further sets of dirty vnodes within that root.
+---@type table< Relm.Internal.Root, table<Relm.Internal.VNode, true> >
+local dirty_roots = {}
+---Set of dead roots to be killed on deferred rendering pass.
+---@type table<Relm.Internal.Root, true>
+local dead_roots = {}
+---`true` if a deferred render is pending.
+local pending_render = false
+
+--------------------------------------------------------------------------------
 -- VNODES
 --------------------------------------------------------------------------------
 
@@ -348,7 +399,8 @@ end
 
 ---Find vnode with given element, using cache if possible.
 ---@param elt? LuaGuiElement
-local function get_vnode(elt)
+---@param index? int If given, search for this index in the cache rather than the elt's own index.
+local function get_vnode(elt, index)
 	if not elt or not elt.valid then return nil end
 	local root_id = elt.tags["__relm_root"]
 	if not root_id then
@@ -379,20 +431,13 @@ local function get_vnode(elt)
 		return nil
 	end
 	---@type Relm.Internal.VNode?
-	local vnode = root.index_to_vnode[elt.index]
+	local vnode = root.index_to_vnode[index or elt.index]
 	if vnode then return vnode end
-	if strace then
-		strace(
-			WARN,
-			"relm",
-			"vnode",
-			"message",
-			"cache miss in get_vnode, shouldnt happen anymore..."
-		)
+	if index then
+		return nil
+	else
+		error("LOGIC ERROR: relm: Interactive element did not have a cached index.")
 	end
-	vnode = find_vnode(root.vtree_root, elt)
-	root.index_to_vnode[elt.index] = vnode
-	return vnode
 end
 
 ---@param node? Relm.Node|Relm.Internal.VNode
@@ -401,29 +446,6 @@ local function is_primitive(node) return node and node.type == "Primitive" end
 --------------------------------------------------------------------------------
 -- VTREE RENDERING
 --------------------------------------------------------------------------------
-
--- RENDER STATE
--- Hook renderstate implementation vars.
--- MP SAFETY: these are all reset in `normalized_render` and are restricted
--- to the context of a Lua callstack.
----Currently hooking node.
----@type Relm.Internal.VNode?
-local hook_node = nil
----Current hook number within the node's rendering
-local hook_num = 0
----Whether we are in a hydrating render.
-local render_is_hydrating = false
----Removed keys on primitive nodes. We must set these to `nil` when
----painting if we reuse the node.
----TODO: this must be reset with render state or it will become MP-unsafe
-local removed_keys = setmetatable({}, { __mode = "k" })
--- Stats
--- MP SAFETY: These are all reset and recounted on a paint cycle, which should
--- be one frame.
-local optimae = 0
-local pessimae = 0
-local root_touched = 0
-local elements = 0
 
 ---Normalize calls and results of `element.render`
 ---@param def? Relm.ElementDefinition
@@ -513,6 +535,7 @@ local function vapply_children(vnode, render_children)
 				vchild = vchildren[vindex]
 			end
 			vchild.parent = vnode
+			vchild.root_id = vnode.root_id
 			vchild.index = vindex
 			vapply(vchild, rchild)
 			vindex = vindex + 1
@@ -977,55 +1000,68 @@ local function vpaint(vnode, context, same)
 		removed_keys[vnode] = nil
 	end
 
-	-- Apply tags
-	local tags = elem.tags
-	if props.listen then
-		tags[LISTEN_KEY] = true
+	local has_ref = (type(props.ref) == "function")
+	local has_manual_paint = (type(props.manual_paint) == "function")
+	local has_listen = not not props.listen
+	local should_index = has_listen or has_manual_paint
+
+	-- Index node if needed
+	if should_index then
 		-- TODO: this is a bit ugly...
 		local root = storage._relm.roots[context.root_id] --[[@as Relm.Internal.Root]]
 		root.index_to_vnode[elem.index] = vnode
-	elseif tags[LISTEN_KEY] then
-		tags[LISTEN_KEY] = nil
+	else
 		local root = storage._relm.roots[context.root_id] --[[@as Relm.Internal.Root]]
 		root.index_to_vnode[elem.index] = nil
+	end
+
+	-- Apply tags
+	local tags = elem.tags
+	if has_listen then
+		tags[LISTEN_KEY] = elem.index
+	elseif tags[LISTEN_KEY] then
+		tags[LISTEN_KEY] = nil
 	end
 	elem.tags = tags
 
 	-- Handle `ref`s
-	if type(props.ref) == "function" and elem_changed then
-		props.ref(vnode.elem, vnode)
-	end
+	if has_ref and elem_changed then props.ref(vnode.elem, vnode) end
 
-	-- Handle children
-	local vchildren = vnode.children or {}
-	if #vchildren > 0 then
-		---@type Relm.Internal.PaintContext
-		local child_context = {
-			elem = elem,
-			index = 1,
-			root_id = context.root_id,
-		}
-		for i = 1, #vchildren do
-			vpaint(vchildren[i], child_context)
-		end
-		-- Prune children beyond those rendered.
-		local echildren = elem.children
-		for i = child_context.index, #echildren do
-			vpaint_element_destroy(context, echildren[i])
-		end
-		if
-			elem.type == "tabbed-pane"
-			and child_context
-			and child_context.structure_changed
-		then
-			vpaint_fix_tabs(elem)
-		end
+	if has_manual_paint then
+		-- Manual painted nodes are responsible for painting their children, so we don't recurse.
+		props.manual_paint(vnode.elem, props)
 	else
-		local echildren = elem.children
-		for i = 1, #echildren do
-			vpaint_element_destroy(context, echildren[i])
+		-- Handle children
+		local vchildren = vnode.children or EMPTY
+		if #vchildren > 0 then
+			---@type Relm.Internal.PaintContext
+			local child_context = {
+				elem = elem,
+				index = 1,
+				root_id = context.root_id,
+			}
+			for i = 1, #vchildren do
+				vpaint(vchildren[i], child_context)
+			end
+			-- Prune children beyond those rendered.
+			local echildren = elem.children
+			for i = child_context.index, #echildren do
+				vpaint_element_destroy(context, echildren[i])
+			end
+			if
+				elem.type == "tabbed-pane"
+				and child_context
+				and child_context.structure_changed
+			then
+				vpaint_fix_tabs(elem)
+			end
+		else
+			local echildren = elem.children
+			for i = 1, #echildren do
+				vpaint_element_destroy(context, echildren[i])
+			end
+			if elem.type == "tabbed-pane" then elem.remove_tab() end
 		end
-		if elem.type == "tabbed-pane" then elem.remove_tab() end
 	end
 end
 
@@ -1169,54 +1205,102 @@ local function vrepaint(vnode)
 end
 
 --------------------------------------------------------------------------------
--- SIDE EFFECTS
+-- SIDE EFFECTS AND DEFERRED RENDERING
 --------------------------------------------------------------------------------
-
--- TODO: consider a more efficient deque for barrier_queue
-
--- MULTIPLAYER SAFETY: `enter_barrier` and `exit_barrier` must ALWAYS be
--- called on the same frame, otherwise there will be desyncs.
-local barrier_count = 0
-local barrier_queue = {}
 
 local function enter_side_effect_barrier() barrier_count = barrier_count + 1 end
 
-local function empty_barrier_queue()
-	while barrier_count == 0 and #barrier_queue > 0 do
-		local entry = tremove(barrier_queue, 1)
-		local op = entry[1]
-		local vnode = entry[2]
-		local arg1 = entry[3]
-		local arg2 = entry[4]
-		op(vnode, arg1, arg2)
+local function exit_side_effect_barrier() barrier_count = barrier_count - 1 end
+
+local function is_in_side_effect_barrier() return (barrier_count > 0) end
+
+local function defer_render()
+	if pending_render then return end
+	pending_render = true
+	event.dynamic_subtick_trigger("relm.deferred_render", "render")
+end
+
+---@param dirty_nodes table<Relm.Internal.VNode, true>
+---@param node Relm.Internal.VNode
+local function recursive_clean(dirty_nodes, node)
+	dirty_nodes[node] = nil
+
+	for _, child in pairs(node.children or EMPTY) do
+		recursive_clean(dirty_nodes, child)
 	end
 end
 
-local function exit_side_effect_barrier()
-	barrier_count = barrier_count - 1
-	return empty_barrier_queue()
-end
-
-local function barrier_wrap(op, vnode, arg1, arg2)
-	if not vnode or not vnode.type then return end
-	if barrier_count > 0 then
-		barrier_queue[#barrier_queue + 1] = { op or noop, vnode, arg1, arg2 }
-	else
-		barrier_count = barrier_count + 1
-		op(vnode, arg1, arg2)
-		return exit_side_effect_barrier()
+---@param node Relm.Internal.VNode
+local function defer_render_for_node(node)
+	local relm_state = storage._relm
+	local root = relm_state.roots[node.root_id] --[[@as Relm.Internal.Root? ]]
+	if not root then return end
+	local dirty_nodes = dirty_roots[root]
+	if not dirty_nodes then
+		dirty_nodes = {}
+		dirty_roots[root] = dirty_nodes
 	end
+
+	-- If I or one of my parents is already dirty, no need to do anything.
+	local parent = node
+	while parent do
+		if dirty_nodes[parent] then return end
+		parent = parent.parent
+	end
+
+	-- Mark me as dirty
+	dirty_nodes[node] = true
+
+	-- Remove any children from dirty as they will be painted with me.
+	for _, child in pairs(node.children or EMPTY) do
+		recursive_clean(dirty_nodes, child)
+	end
+
+	defer_render()
 end
 
-local function vstate_impl(vnode, arg)
-	vnode.state = arg
-	return vrepaint(vnode)
+local function deferred_render()
+	local relm_state = storage._relm
+
+	enter_side_effect_barrier()
+
+	-- Kill dead roots
+	for root, _ in pairs(dead_roots) do
+		-- Don't try to repaint dead roots
+		dirty_roots[root] = nil
+		-- Kill the virtual root
+		-- XXX: investigate the side effect implications here.
+		vprune(root.vtree_root)
+		-- Destroy the rendered root element and all children
+		local root_element = root.root_element
+		if root_element and root_element.valid then root_element.destroy() end
+		-- Quash the state
+		relm_state.roots[root.id] = nil
+		dead_roots[root] = nil
+	end
+
+	-- Rerender dirty roots
+	for root, dirty_nodes in pairs(dirty_roots) do
+		for node in pairs(dirty_nodes) do
+			vrepaint(node)
+		end
+		dirty_roots[root] = nil
+	end
+
+	exit_side_effect_barrier()
+	pending_render = false
 end
+
+event.register_dynamic_handler("relm.deferred_render", deferred_render)
 
 ---@param vnode Relm.Internal.VNode
 ---@param state Relm.State?
 local function vstate(vnode, state)
-	return barrier_wrap(vstate_impl, vnode, state)
+	if is_in_side_effect_barrier() then
+		error("relm: Side effects are not allowed during rendering.")
+	end
+	vnode.state = state
+	return defer_render_for_node(vnode)
 end
 
 local function vimpl_msg_or_query(vnode, payload, base_key, prop_key)
@@ -1247,24 +1331,10 @@ local function vimpl_msg_or_query(vnode, payload, base_key, prop_key)
 end
 
 ---@param vnode Relm.Internal.VNode
----@param payload any
-local function vmsg_impl(vnode, payload)
-	return vimpl_msg_or_query(vnode, payload, "message", "message_handler")
-end
-
----@param vnode Relm.Internal.VNode
 ---@param payload Relm.SendMessagePayload
 vmsg = function(vnode, payload)
 	payload.propagation_mode = "unicast"
-	return barrier_wrap(vmsg_impl, vnode, payload)
-end
-
-local function vmsg_bubble_impl(vnode, payload, resent)
-	if resent == true then vnode = vnode.parent end
-	while vnode and vnode.type do
-		if vmsg_impl(vnode, payload) then return end
-		vnode = vnode.parent
-	end
+	return vimpl_msg_or_query(vnode, payload, "message", "message_handler")
 end
 
 ---@param vnode Relm.Internal.VNode
@@ -1272,13 +1342,21 @@ end
 ---@param resent boolean?
 local function vmsg_bubble(vnode, payload, resent)
 	payload.propagation_mode = "bubble"
-	return barrier_wrap(vmsg_bubble_impl, vnode, payload, resent)
+	if resent == true then vnode = vnode.parent end
+	while vnode and vnode.type do
+		local result =
+			vimpl_msg_or_query(vnode, payload, "message", "message_handler")
+		if result then return end
+		vnode = vnode.parent
+	end
 end
 
 local function vmsg_broadcast_impl(vnode, payload, resent)
 	if vnode and vnode.type then
 		if not resent then
-			if vmsg_impl(vnode, payload) then return end
+			if vimpl_msg_or_query(vnode, payload, "message", "message_handler") then
+				return
+			end
 		end
 		local children = vnode.children
 		if children then
@@ -1294,7 +1372,7 @@ end
 ---@param resent boolean?
 local function vmsg_broadcast(vnode, payload, resent)
 	payload.propagation_mode = "broadcast"
-	return barrier_wrap(vmsg_broadcast_impl, vnode, payload, resent)
+	return vmsg_broadcast_impl(vnode, payload, resent)
 end
 
 ---Set up state management for a render hook. Should be called precisely once
@@ -1381,10 +1459,30 @@ end
 
 ---@param ev Relm.GuiEventData
 local function dispatch(ev)
-	if ev.element and ev.element.tags[LISTEN_KEY] then
-		local vnode = get_vnode(ev.element)
+	local element = ev.element
+	if not element then return end
+	local tags = element.tags
+	local listen_tag = tags[LISTEN_KEY]
+	if not listen_tag then return end
+	---@cast listen_tag int
+
+	if listen_tag == element.index then
+		-- Event targeting a primitive owned by Relm.
+		local vnode = get_vnode(element)
 		if vnode and vnode.type then
 			vmsg_bubble(vnode, { key = "factorio_event", event = ev, name = ev.name })
+		end
+	else
+		-- Event arising from a manual_painted child element
+		local vnode = get_vnode(element, listen_tag)
+		if vnode and vnode.type then
+			vmsg(vnode, {
+				key = "manual_child_event",
+				event = ev,
+				name = ev.name,
+				element = element,
+				tags = tags,
+			})
 		end
 	end
 end
@@ -1543,13 +1641,8 @@ function lib.root_destroy(id)
 	if not relm_state then return end
 	local root = relm_state.roots[id]
 	if not root then return end
-	-- XXX: defer this
-	enter_side_effect_barrier()
-	vprune(root.vtree_root)
-	exit_side_effect_barrier()
-	local root_element = root.root_element
-	if root_element and root_element.valid then root_element.destroy() end
-	relm_state.roots[id] = nil
+	dead_roots[root] = true
+	defer_render()
 	return true
 end
 
@@ -1682,7 +1775,13 @@ lib.Primitive = lib.define_element({
 ---Repaint the Relm element with the given `handle`.
 ---@param handle Relm.Handle
 function lib.paint(handle)
-	barrier_wrap(vrepaint, handle --[[@as Relm.Internal.VNode]])
+	if is_in_side_effect_barrier() then
+		error("relm: Side effects are not allowed during rendering.")
+	end
+
+	---@diagnostic disable-next-line: cast-type-mismatch
+	---@cast handle Relm.Internal.VNode
+	if handle and handle.type then return defer_render_for_node(handle) end
 end
 
 ---Change the state of the Relm element with the given `handle`.
