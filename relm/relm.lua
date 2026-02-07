@@ -205,6 +205,10 @@ local STYLE_KEYS = {
 
 ---@alias Relm.Value boolean|int|number|string
 
+---@alias Relm.RefFn fun(elem: LuaGuiElement, handle: Relm.Handle)
+
+---@alias Relm.ManualPaintFn fun(elem: LuaGuiElement, props: Relm.Props)
+
 ---@alias Relm.Props {children?: Relm.Children, [string|int]:any}
 
 ---@alias Relm.State string|number|int|boolean|table|nil
@@ -395,7 +399,8 @@ end
 
 ---Find vnode with given element, using cache if possible.
 ---@param elt? LuaGuiElement
-local function get_vnode(elt)
+---@param index? int If given, search for this index in the cache rather than the elt's own index.
+local function get_vnode(elt, index)
 	if not elt or not elt.valid then return nil end
 	local root_id = elt.tags["__relm_root"]
 	if not root_id then
@@ -426,20 +431,13 @@ local function get_vnode(elt)
 		return nil
 	end
 	---@type Relm.Internal.VNode?
-	local vnode = root.index_to_vnode[elt.index]
+	local vnode = root.index_to_vnode[index or elt.index]
 	if vnode then return vnode end
-	if strace then
-		strace(
-			WARN,
-			"relm",
-			"vnode",
-			"message",
-			"cache miss in get_vnode, shouldnt happen anymore..."
-		)
+	if index then
+		return nil
+	else
+		error("LOGIC ERROR: relm: Interactive element did not have a cached index.")
 	end
-	vnode = find_vnode(root.vtree_root, elt)
-	root.index_to_vnode[elt.index] = vnode
-	return vnode
 end
 
 ---@param node? Relm.Node|Relm.Internal.VNode
@@ -1002,55 +1000,68 @@ local function vpaint(vnode, context, same)
 		removed_keys[vnode] = nil
 	end
 
-	-- Apply tags
-	local tags = elem.tags
-	if props.listen then
-		tags[LISTEN_KEY] = true
+	local has_ref = (type(props.ref) == "function")
+	local has_manual_paint = (type(props.manual_paint) == "function")
+	local has_listen = not not props.listen
+	local should_index = has_listen or has_manual_paint
+
+	-- Index node if needed
+	if should_index then
 		-- TODO: this is a bit ugly...
 		local root = storage._relm.roots[context.root_id] --[[@as Relm.Internal.Root]]
 		root.index_to_vnode[elem.index] = vnode
-	elseif tags[LISTEN_KEY] then
-		tags[LISTEN_KEY] = nil
+	else
 		local root = storage._relm.roots[context.root_id] --[[@as Relm.Internal.Root]]
 		root.index_to_vnode[elem.index] = nil
+	end
+
+	-- Apply tags
+	local tags = elem.tags
+	if has_listen then
+		tags[LISTEN_KEY] = elem.index
+	elseif tags[LISTEN_KEY] then
+		tags[LISTEN_KEY] = nil
 	end
 	elem.tags = tags
 
 	-- Handle `ref`s
-	if type(props.ref) == "function" and elem_changed then
-		props.ref(vnode.elem, vnode)
-	end
+	if has_ref and elem_changed then props.ref(vnode.elem, vnode) end
 
-	-- Handle children
-	local vchildren = vnode.children or {}
-	if #vchildren > 0 then
-		---@type Relm.Internal.PaintContext
-		local child_context = {
-			elem = elem,
-			index = 1,
-			root_id = context.root_id,
-		}
-		for i = 1, #vchildren do
-			vpaint(vchildren[i], child_context)
-		end
-		-- Prune children beyond those rendered.
-		local echildren = elem.children
-		for i = child_context.index, #echildren do
-			vpaint_element_destroy(context, echildren[i])
-		end
-		if
-			elem.type == "tabbed-pane"
-			and child_context
-			and child_context.structure_changed
-		then
-			vpaint_fix_tabs(elem)
-		end
+	if has_manual_paint then
+		-- Manual painted nodes are responsible for painting their children, so we don't recurse.
+		props.manual_paint(vnode.elem, props)
 	else
-		local echildren = elem.children
-		for i = 1, #echildren do
-			vpaint_element_destroy(context, echildren[i])
+		-- Handle children
+		local vchildren = vnode.children or EMPTY
+		if #vchildren > 0 then
+			---@type Relm.Internal.PaintContext
+			local child_context = {
+				elem = elem,
+				index = 1,
+				root_id = context.root_id,
+			}
+			for i = 1, #vchildren do
+				vpaint(vchildren[i], child_context)
+			end
+			-- Prune children beyond those rendered.
+			local echildren = elem.children
+			for i = child_context.index, #echildren do
+				vpaint_element_destroy(context, echildren[i])
+			end
+			if
+				elem.type == "tabbed-pane"
+				and child_context
+				and child_context.structure_changed
+			then
+				vpaint_fix_tabs(elem)
+			end
+		else
+			local echildren = elem.children
+			for i = 1, #echildren do
+				vpaint_element_destroy(context, echildren[i])
+			end
+			if elem.type == "tabbed-pane" then elem.remove_tab() end
 		end
-		if elem.type == "tabbed-pane" then elem.remove_tab() end
 	end
 end
 
@@ -1448,10 +1459,30 @@ end
 
 ---@param ev Relm.GuiEventData
 local function dispatch(ev)
-	if ev.element and ev.element.tags[LISTEN_KEY] then
-		local vnode = get_vnode(ev.element)
+	local element = ev.element
+	if not element then return end
+	local tags = element.tags
+	local listen_tag = tags[LISTEN_KEY]
+	if not listen_tag then return end
+	---@cast listen_tag int
+
+	if listen_tag == element.index then
+		-- Event targeting a primitive owned by Relm.
+		local vnode = get_vnode(element)
 		if vnode and vnode.type then
 			vmsg_bubble(vnode, { key = "factorio_event", event = ev, name = ev.name })
+		end
+	else
+		-- Event arising from a manual_painted child element
+		local vnode = get_vnode(element, listen_tag)
+		if vnode and vnode.type then
+			vmsg(vnode, {
+				key = "manual_child_event",
+				event = ev,
+				name = ev.name,
+				element = element,
+				tags = tags,
+			})
 		end
 	end
 end

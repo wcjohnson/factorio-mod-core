@@ -1,5 +1,10 @@
 local relm = require("lib.core.relm.relm")
 
+local strformat = string.format
+local type = _G.type
+local abs = math.abs
+local floor = math.floor
+
 local lib = {}
 
 local noop = function() end
@@ -746,6 +751,91 @@ lib.ShallowSection = relm.define_element({
 				style = "relm_deep_frame_in_shallow_frame_stretchable",
 			}, props.children),
 		}
+	end,
+})
+
+--------------------------------------------------------------------------------
+-- SIGNAL BUTTON GRIDS
+--------------------------------------------------------------------------------
+
+local function si_format(count, divisor, si_symbol)
+	if abs(floor(count / divisor)) >= 10 then
+		count = floor(count / divisor)
+		return strformat("%.0f%s", count, si_symbol)
+	else
+		count = floor(count / (divisor / 10)) / 10
+		return strformat("%.1f%s", count, si_symbol)
+	end
+end
+
+---@param count int
+---@return string
+local function format_signal_count(count)
+	local absv = abs(count)
+	return -- signals are 32bit integers so Giga is enough
+		absv >= 1e9 and si_format(count, 1e9, "G") or absv >= 1e6 and si_format(
+		count,
+		1e6,
+		"M"
+	) or absv >= 1e3 and si_format(count, 1e3, "k") or tostring(count)
+end
+
+---Manual paint function for signal counts
+---@param elem LuaGuiElement
+---@param primitive_props table
+local function paint_signal_counts(elem, primitive_props)
+	local props = primitive_props.parent_props
+
+	local signals = props.signals or {}
+	local counts = props.counts or {}
+	local child_index = 1
+
+	local children = elem.children
+
+	for i = 1, #signals do
+		local signal = signals[i]
+		local button = children[child_index]
+		local caption = ""
+		local count = counts[i]
+		if type(count) == "number" then caption = format_signal_count(count) end
+
+		if not button then
+			button = elem.add({
+				type = "choose-elem-button",
+				elem_type = "signal",
+				enabled = false,
+				style = "flib_slot_button_green",
+			})
+			button.elem_value = signal
+			button.add({
+				type = "label",
+				style = "cs2_label_signal_count_inventory",
+				ignored_by_interaction = true,
+				caption = caption,
+			})
+		else
+			button.elem_value = signal
+			button.children[1].caption = caption
+		end
+		child_index = child_index + 1
+	end
+
+	while #children >= child_index do
+		children[child_index].destroy()
+		child_index = child_index + 1
+	end
+end
+
+lib.SignalCountsTable = relm.define_element({
+	name = "ultros.SignalCountsTable",
+	render = function(props)
+		return Pr({
+			type = "table",
+			column_count = props.column_count,
+			manual_paint = paint_signal_counts,
+			style = props.style,
+			parent_props = props,
+		})
 	end,
 })
 
