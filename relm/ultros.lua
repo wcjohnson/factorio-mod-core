@@ -1,4 +1,5 @@
 local relm = require("lib.core.relm.relm")
+local relm_util = require("lib.core.relm.util")
 
 local strformat = string.format
 local type = _G.type
@@ -479,6 +480,15 @@ lib.WellSection = relm.define_element({
 		local collapsed = (state or {}).collapsed
 		local visible = true
 		if props.visible == false then visible = false end
+		local caption_element = props.caption_element
+		if props.caption then
+			caption_element = Pr({
+				type = "label",
+				style = "subheader_caption_label",
+				caption = props.caption,
+			})
+		end
+
 		return VF({
 			bottom_margin = 6,
 			horizontally_squashable = true,
@@ -490,11 +500,7 @@ lib.WellSection = relm.define_element({
 				horizontally_stretchable = true,
 				bottom_margin = 4,
 			}, {
-				Pr({
-					type = "label",
-					style = "subheader_caption_label",
-					caption = props.caption,
-				}),
+				caption_element,
 				lib.If(props.decorate, HF({ horizontally_stretchable = true }, {})),
 				lib.CallIf(props.decorate, props.decorate, props, state),
 			}),
@@ -751,6 +757,22 @@ lib.ShallowSection = relm.define_element({
 				style = "relm_deep_frame_in_shallow_frame_stretchable",
 			}, props.children),
 		}
+	end,
+})
+
+lib.TimedRepaintWrapper = relm.define_element({
+	name = "ultros.TimedRepaintWrapper",
+	render = function(props)
+		relm_util.use_timer(props.period or 60, "_repaint")
+		return props.render()
+	end,
+	message = function(me, message, props)
+		if message.key == "_repaint" then
+			relm.paint(me)
+			return true
+		else
+			return false
+		end
 	end,
 })
 
