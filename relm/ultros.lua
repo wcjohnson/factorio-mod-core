@@ -786,8 +786,8 @@ end
 local function paint_signal_counts(elem, primitive_props)
 	local props = primitive_props.parent_props
 
-	local signals = props.signals or {}
-	local counts = props.counts or {}
+	local signals = props.signals or empty
+	local counts = props.counts or empty
 	local child_index = 1
 
 	local children = elem.children
@@ -804,7 +804,7 @@ local function paint_signal_counts(elem, primitive_props)
 				type = "choose-elem-button",
 				elem_type = "signal",
 				enabled = false,
-				style = "flib_slot_button_green",
+				style = "flib_slot_button_default",
 			})
 			button.elem_value = signal
 			button.add({

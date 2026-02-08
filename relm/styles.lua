@@ -429,3 +429,43 @@ styles.relm_deep_frame_in_shallow_frame_stretchable = {
 	parent = "deep_frame_in_shallow_frame",
 	horizontally_stretchable = "on",
 }
+
+styles.relm_invisible_button = {
+	type = "button_style",
+	default_graphical_set = {
+		base = { type = "none" },
+	},
+	hovered_graphical_set = {
+		base = { type = "none" },
+	},
+	clicked_graphical_set = {
+		base = { type = "none" },
+	},
+	disabled_graphical_set = {
+		base = { type = "none" },
+	},
+	selected_graphical_set = {
+		base = { type = "none" },
+	},
+	selected_hovered_graphical_set = {
+		base = { type = "none" },
+	},
+	game_controller_selected_hovered_graphical_set = {
+		base = { type = "none" },
+	},
+	selected_clicked_graphical_set = {
+		base = { type = "none" },
+	},
+}
+
+styles.relm_raised_frame = {
+	type = "frame_style",
+	graphical_set = {
+		base = {
+			position = { 68, 0 },
+			corner_size = 8,
+		},
+		shadow = styles.train_with_minimap_frame.graphical_set.shadow,
+	},
+	padding = 4,
+}
