@@ -90,49 +90,51 @@ local function do_at(tick, task_id)
 end
 
 -- Tick handler. Runs every tick and executes any tasks scheduled for that tick.
-event.bind(
-	event.nth_tick(1),
-	---@param tick_data NthTickEventData
-	function(tick_data)
-		local state = storage._sched --[[@as Scheduler.Storage]]
-		if not state then return end
-		local tick_n = tick_data.tick
-		local task_set = state.at[tick_n]
-		if task_set then
-			for task_id in pairs(task_set) do
-				local task = state.tasks[task_id]
-				if task then
-					local handler = handlers[task.handler_name]
-					local handler_result = nil
-					if handler then
-						handler_result = handler(task)
-					else
-						if strace then
-							strace(
-								ERROR,
-								"scheduler",
-								"missing_handler",
-								"handler_name",
-								task.handler_name
-							)
+if not _G.__RECOVERY_MODE__ then
+	event.bind(
+		event.nth_tick(1),
+		---@param tick_data NthTickEventData
+		function(tick_data)
+			local state = storage._sched --[[@as Scheduler.Storage]]
+			if not state then return end
+			local tick_n = tick_data.tick
+			local task_set = state.at[tick_n]
+			if task_set then
+				for task_id in pairs(task_set) do
+					local task = state.tasks[task_id]
+					if task then
+						local handler = handlers[task.handler_name]
+						local handler_result = nil
+						if handler then
+							handler_result = handler(task)
+						else
+							if strace then
+								strace(
+									ERROR,
+									"scheduler",
+									"missing_handler",
+									"handler_name",
+									task.handler_name
+								)
+							end
+							handler_result = ABORT
 						end
-						handler_result = ABORT
-					end
-					-- Returning abort code can stop recurring tasks.
-					if handler_result == ABORT then state.tasks[task_id] = nil end
-					if task.type == "once" then
-						state.tasks[task_id] = nil
-					elseif task.type == "many" then
-						local rtask = task --[[@as Scheduler.RecurringTask]]
-						rtask.next = tick_n + rtask.period
-						do_at(rtask.next, task_id)
+						-- Returning abort code can stop recurring tasks.
+						if handler_result == ABORT then state.tasks[task_id] = nil end
+						if task.type == "once" then
+							state.tasks[task_id] = nil
+						elseif task.type == "many" then
+							local rtask = task --[[@as Scheduler.RecurringTask]]
+							rtask.next = tick_n + rtask.period
+							do_at(rtask.next, task_id)
+						end
 					end
 				end
+				state.at[tick_n] = nil
 			end
-			state.at[tick_n] = nil
 		end
-	end
-)
+	)
+end
 
 local function dont_at(state, tick, task_id)
 	local task_set = state.at[tick]

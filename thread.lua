@@ -198,70 +198,72 @@ end
 --------------------------------------------------------------------------------
 
 ---Perform tasks for the given tick. MUST be called precisely once every tick.
-event.bind(
-	event.nth_tick(1),
-	---@param tick_data NthTickEventData
-	function(tick_data)
-		local data = get_data()
-		if not data then
-			if strace then strace(ERROR, "thread", "missing_data") end
-			return
-		end
-		local tick_n = tick_data.tick
+if not _G.__RECOVERY_MODE__ then
+	event.bind(
+		event.nth_tick(1),
+		---@param tick_data NthTickEventData
+		function(tick_data)
+			local data = get_data()
+			if not data then
+				if strace then strace(ERROR, "thread", "missing_data") end
+				return
+			end
+			local tick_n = tick_data.tick
 
-		-- Wake all threads that are scheduled to wake up at this tick
-		local wake_now = data.wake_at[tick_n]
-		if wake_now then
-			for id in pairs(wake_now) do
+			-- Wake all threads that are scheduled to wake up at this tick
+			local wake_now = data.wake_at[tick_n]
+			if wake_now then
+				for id in pairs(wake_now) do
+					local thread = data.threads[id]
+					if thread then
+						thread.wake_at = nil
+						schedule(data, thread, true)
+					end
+				end
+				data.wake_at[tick_n] = nil
+			end
+
+			-- Honor work period
+			if tick_n % data.work_period ~= 0 then return end
+
+			-- Execute all mainloops in current bucket.
+			local buckets = data.buckets
+			local current_bucket = data.current_bucket
+			local bucket = buckets[current_bucket]
+			if not bucket then
+				-- Something has mutilated the thread scheduler's state.
+				error("Thread scheduler: missing bucket, invalid state")
+				return
+			end
+			for id in pairs(bucket) do
 				local thread = data.threads[id]
 				if thread then
-					thread.wake_at = nil
-					schedule(data, thread, true)
-				end
-			end
-			data.wake_at[tick_n] = nil
-		end
-
-		-- Honor work period
-		if tick_n % data.work_period ~= 0 then return end
-
-		-- Execute all mainloops in current bucket.
-		local buckets = data.buckets
-		local current_bucket = data.current_bucket
-		local bucket = buckets[current_bucket]
-		if not bucket then
-			-- Something has mutilated the thread scheduler's state.
-			error("Thread scheduler: missing bucket, invalid state")
-			return
-		end
-		for id in pairs(bucket) do
-			local thread = data.threads[id]
-			if thread then
-				if thread.wake_at then
-					unschedule(data, id, bucket, current_bucket)
+					if thread.wake_at then
+						unschedule(data, id, bucket, current_bucket)
+					else
+						thread:main()
+					end
 				else
-					thread:main()
+					-- Thread has been killed, remove from bucket
+					unschedule(data, id, bucket, current_bucket)
 				end
-			else
-				-- Thread has been killed, remove from bucket
-				unschedule(data, id, bucket, current_bucket)
 			end
-		end
 
-		-- Move to next bucket.
-		current_bucket = current_bucket + 1
-		if current_bucket > #buckets then
-			-- If we haven't rescheduled all in a while, do so at the end of a bucket
-			-- sweep so no one is denied a timeslice.
-			if data.last_reschedule_tick + DEFAULT_RESCHEDULE_INTERVAL < tick_n then
-				data.last_reschedule_tick = tick_n
-				reschedule_all(data)
+			-- Move to next bucket.
+			current_bucket = current_bucket + 1
+			if current_bucket > #buckets then
+				-- If we haven't rescheduled all in a while, do so at the end of a bucket
+				-- sweep so no one is denied a timeslice.
+				if data.last_reschedule_tick + DEFAULT_RESCHEDULE_INTERVAL < tick_n then
+					data.last_reschedule_tick = tick_n
+					reschedule_all(data)
+				end
+				current_bucket = 1
 			end
-			current_bucket = 1
+			data.current_bucket = current_bucket
 		end
-		data.current_bucket = current_bucket
-	end
-)
+	)
+end
 
 event.bind("on_shutdown", function()
 	-- Kill all threads on shutdown.
