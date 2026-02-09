@@ -373,6 +373,8 @@ local dirty_roots = {}
 local dead_roots = {}
 ---`true` if a deferred render is pending.
 local pending_render = false
+---Side-effects lifted out of render operation
+local post_render_effects = {}
 
 --------------------------------------------------------------------------------
 -- VNODES
@@ -1214,6 +1216,13 @@ local function exit_side_effect_barrier() barrier_count = barrier_count - 1 end
 
 local function is_in_side_effect_barrier() return (barrier_count > 0) end
 
+local function run_post_render_effects()
+	for i = #post_render_effects, 1, -1 do
+		post_render_effects[i]()
+		post_render_effects[i] = nil
+	end
+end
+
 local function defer_render()
 	if pending_render then return end
 	pending_render = true
@@ -1289,6 +1298,7 @@ local function deferred_render()
 
 	exit_side_effect_barrier()
 	pending_render = false
+	run_post_render_effects()
 end
 
 event.register_dynamic_handler("relm.deferred_render", deferred_render)
@@ -1612,8 +1622,10 @@ function lib.root_create(container_element, name, element_type, props)
 		root_id = id,
 	})
 	exit_side_effect_barrier()
-	local created_elt = find_first_elem(vtree_root)
+	run_post_render_effects()
 
+	-- Find the Factorio element that was painted
+	local created_elt = find_first_elem(vtree_root)
 	if created_elt then
 		relm_state.roots[id].root_element = created_elt
 	else
@@ -1862,11 +1874,13 @@ function lib.use_effect(effect_key, callback, cleanup)
 		return
 	else
 		if not shallow_eq(effect_key, last_effect_key) then
-			state.effect_key = effect_key
-			if last_cleanup then last_cleanup(last_callback_return) end
-			transient.cleanup = cleanup
-			state.callback_return =
-				callback(hook_node --[[@as Relm.Handle]], effect_key, last_effect_key)
+			post_render_effects[#post_render_effects + 1] = function()
+				state.effect_key = effect_key
+				if last_cleanup then last_cleanup(last_callback_return) end
+				transient.cleanup = cleanup
+				state.callback_return =
+					callback(hook_node --[[@as Relm.Handle]], effect_key, last_effect_key)
+			end
 		end
 	end
 end
