@@ -1868,6 +1868,7 @@ function lib.use_effect(effect_key, callback, cleanup)
 	local last_effect_key = state.effect_key
 	local last_callback_return = state.callback_return
 	local last_cleanup = transient.cleanup
+	local last_hook_node = hook_node
 	if render_is_hydrating then
 		-- Hydrating render, restore cleanup function but do nothing else
 		transient.cleanup = cleanup
@@ -1878,8 +1879,11 @@ function lib.use_effect(effect_key, callback, cleanup)
 				state.effect_key = effect_key
 				if last_cleanup then last_cleanup(last_callback_return) end
 				transient.cleanup = cleanup
-				state.callback_return =
-					callback(hook_node --[[@as Relm.Handle]], effect_key, last_effect_key)
+				state.callback_return = callback(
+					last_hook_node --[[@as Relm.Handle]],
+					effect_key,
+					last_effect_key
+				)
 			end
 		end
 	end
