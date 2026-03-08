@@ -17,7 +17,7 @@ local table_size = _G.table_size
 local EMPTY = setmetatable({}, { __newindex = function() end })
 
 ---Name of a specific event. May be a positive integer representing a `defines.event`, a string representing a custom user event, or a negative integer representing a tick interval (e.g. -60 for once per second).
----@alias Core.EventName int|string
+---@alias Core.EventName int|string|defines.events
 
 ---Opaque identifier for a dynamic binding.
 ---@alias Core.EventDynamicBindingId int64
