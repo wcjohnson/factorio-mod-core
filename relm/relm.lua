@@ -1647,12 +1647,13 @@ end
 
 ---Destoys a root and all associated child elements.
 ---@param id Relm.RootId? The ID of the root.
+---@return boolean success `true` if the root was successfully destroyed, `false` if the root was not found or an error occurred.
 function lib.root_destroy(id)
-	if not id then return end
+	if not id then return false end
 	local relm_state = storage._relm
-	if not relm_state then return end
+	if not relm_state then return false end
 	local root = relm_state.roots[id]
-	if not root then return end
+	if not root then return false end
 	dead_roots[root] = true
 	defer_render()
 	return true
