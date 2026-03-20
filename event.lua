@@ -15,6 +15,7 @@ local pairs = _G.pairs
 local table_size = _G.table_size
 
 local EMPTY = setmetatable({}, { __newindex = function() end })
+local REMOVE_BINDING = setmetatable({}, { __newindex = function() end })
 
 ---Name of a specific event. May be a positive integer representing a `defines.event`, a string representing a custom user event, or a negative integer representing a tick interval (e.g. -60 for once per second).
 ---@alias Core.EventName int|string|defines.events
@@ -26,7 +27,9 @@ local EMPTY = setmetatable({}, { __newindex = function() end })
 
 ---@alias Core.EventStorage { [Core.EventName]: Core.EventDynamicBindings }
 
----@alias Core.EventDynamicHandler fun(event_name: Core.EventName, handler_data: any, ...)
+---@alias Core.EventDynamicHandlerResult any
+
+---@alias Core.EventDynamicHandler fun(event_name: Core.EventName, handler_data: any, ...): Core.EventDynamicHandlerResult?
 
 ---@alias Core.EventHandler.on_init fun()
 ---@alias Core.EventHandler.on_load fun()
@@ -110,9 +113,19 @@ local function make_event_callback(event_name, handlers)
 		end
 		local dynamic_handlers = (storage._event or EMPTY)[event_name]
 		if dynamic_handlers then
-			for _, binding in pairs(dynamic_handlers) do
+			local was_removed = false
+			for binding_id, binding in pairs(dynamic_handlers) do
 				local handler = registered_dynamic_handlers[binding[2]]
-				if handler then handler(binding[1], binding[3], ...) end
+				if handler then
+					local result = handler(binding[1], binding[3], ...)
+					if result == REMOVE_BINDING then
+						dynamic_handlers[binding_id] = nil
+						was_removed = true
+					end
+				end
+			end
+			if was_removed then
+				if not next(dynamic_handlers) then storage._event[event_name] = nil end
 			end
 		end
 	end
@@ -168,6 +181,10 @@ end
 ---@class Core.Lib.Event
 local event = {}
 
+---A sentinel value that can be returned from a dynamic event handler
+---instructing the event system to remove the dynamic binding.
+event.REMOVE_BINDING = REMOVE_BINDING
+
 ---Unconditionally bind a handler to an event. This MUST be called at the top
 ---of the control phase and MUST NOT be called conditionally. Handlers may not
 ---be unbound.
@@ -195,9 +212,21 @@ function event.raise(user_event_name, ...)
 	end
 	local dynamic_handlers = (storage._event or EMPTY)[user_event_name]
 	if dynamic_handlers then
-		for _, binding in pairs(dynamic_handlers) do
+		local was_removed = false
+		for binding_id, binding in pairs(dynamic_handlers) do
 			local handler = registered_dynamic_handlers[binding[2]]
-			if handler then handler(binding[1], binding[3], ...) end
+			if handler then
+				local result = handler(binding[1], binding[3], ...)
+				if result == REMOVE_BINDING then
+					dynamic_handlers[binding_id] = nil
+					was_removed = true
+				end
+			end
+		end
+		if was_removed then
+			if not next(dynamic_handlers) then
+				storage._event[user_event_name] = nil
+			end
 		end
 	end
 end
@@ -247,7 +276,7 @@ function event.dynamic_unbind(binding_id)
 	for event_name, ev in pairs(storage._event) do
 		if ev[binding_id] then
 			ev[binding_id] = nil
-			if table_size(ev) == 0 then storage._event[event_name] = nil end
+			if not next(ev) then storage._event[event_name] = nil end
 			return true
 		end
 	end
@@ -256,7 +285,7 @@ end
 
 ---Register a named handler that may be bound to dynamic events.
 ---@param handler_name string The name of the handler. Must be unique throughout the Lua session.
----@param handler fun(event_name: Core.EventName, handler_data: any, ...) The handler function. The first argument is the `handler_data` passed to `event.dynamic_bind`, and any further arguments are those passed to the event when it is raised.
+---@param handler Core.EventDynamicHandler The handler function. The first argument is the event name that was fired, the second argument is the `handler_data` passed to `event.dynamic_bind`, and any further arguments are those passed to the event when it is raised. If the handler returns `event.REMOVE_BINDING`, the dynamic binding will be removed.
 function event.register_dynamic_handler(handler_name, handler)
 	if registered_dynamic_handlers[handler_name] then
 		error("duplicate dynamic handler registration: " .. handler_name)
