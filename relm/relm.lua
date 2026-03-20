@@ -1796,7 +1796,7 @@ function lib.define_element(definition)
 	else
 		return function(props, children)
 			props = props or {}
-			props.children = children
+			if children then props.children = children end
 			return {
 				type = name,
 				props = props,
@@ -1903,7 +1903,10 @@ end
 ---element to re-render when state changes. The value of the state will be
 ---written to `storage` and must be serializable.
 ---
----@param initial_state Relm.State|fun(props: Relm.Props): Relm.State The initial state, or a function that generates the initial state from the props. Note that this value is only evaluated when the state is created. To change the state later, you must use the `set_state` function.
+---@generic T
+---@param initial_state T|fun(props: Relm.Props): T The initial state, or a function that generates the initial state from the props. Note that this value is only evaluated when the state is created. To change the state later, you must use the `set_state` function.
+---@return T state The current state value.
+---@return fun(new_state: T|fun(current_state: T): T) set_state A function that updates the state. This accepts either a new state value or an update function that takes the current state and returns the new state.
 function lib.use_state(initial_state)
 	local node, index, state = setup_hook()
 
