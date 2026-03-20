@@ -737,6 +737,9 @@ vhydrate = function(vnode, node)
 	)
 end
 
+---@param vnode Relm.Internal.VNode
+local function vget_props(vnode) return vprops[vnode] end
+
 --------------------------------------------------------------------------------
 -- PAINTING
 --------------------------------------------------------------------------------
@@ -1400,53 +1403,70 @@ local function vmsg_broadcast(vnode, payload, resent)
 	return vmsg_broadcast_impl(vnode, payload, resent)
 end
 
----@param wants_state boolean If `true`, the hook will have a state object that is stored in `storage`. This data must be serializable and will be saved with the savegame.
----@return int hook_index The index of this hook in the current render. Can be used to associate this hook to external data.
+--------------------------------------------------------------------------------
+-- HOOK PRIMITIVES
+--------------------------------------------------------------------------------
+
+---@return Relm.Internal.VNode hook_node The current hook node. Should be passed to hook primitives to associate them with the correct node.
+---@return int hook_id The id of this hook in the current render. Can be used to associate this hook to external data.
 ---@return table? state The hook state object, or `nil` if `wants_state` is falsy
-local function setup_hook(wants_state)
+local function setup_hook()
+	if not hook_node then
+		error("relm: hook called outside of render function")
+	end
 	hook_num = hook_num + 1
 	local node = hook_node --[[@as Relm.Internal.VNode]]
-	local state
-	if wants_state then
-		state = node[hook_num]
-		if not state then
-			node[hook_num] = {}
-			state = node[hook_num]
-		end
-	end
-	return hook_num, state
+	return node, hook_num, node[hook_num]
 end
 
 ---@param node Relm.Internal.VNode
----@param idx integer
+---@param hook_id integer
+local function set_hook_state(node, hook_id, state)
+	if render_is_hydrating then
+		error(
+			"relm: attempt to set hook state during hydration was detected. This is not allowed because hydration may run during `on_load` where state manipulation is forbidden."
+		)
+	end
+	node[hook_id] = state
+end
+
+local function get_hook_state(node, hook_id) return node[hook_id] end
+
+---@param node Relm.Internal.VNode
+---@param hook_id integer
 ---@param fn? fun(state: table?, transient: any?)
-local function set_hook_cleanup(node, idx, fn)
+local function set_hook_cleanup(node, hook_id, fn)
 	local cleanup = vhooks_cleanup[node]
 	if (not cleanup) and fn then
 		cleanup = {}
 		vhooks_cleanup[node] = cleanup
 	end
-	if cleanup then cleanup[idx] = fn end
+	if cleanup then cleanup[hook_id] = fn end
 end
 
 ---@param node Relm.Internal.VNode
----@param idx integer
+---@param hook_id integer
 ---@return fun(state: table?, transient: any?)? cleanup Cleanup function for this hook, or `nil` if no cleanup was registered
-local function get_hook_cleanup(node, idx)
+local function get_hook_cleanup(node, hook_id)
 	local cleanup = vhooks_cleanup[node]
-	if cleanup then return cleanup[idx] end
+	if cleanup then return cleanup[hook_id] end
 end
 
 ---@param node Relm.Internal.VNode
----@param idx integer
+---@param hook_id integer
 ---@param transient_value any
-local function set_hook_transient(node, idx, transient_value)
+local function set_hook_transient(node, hook_id, transient_value)
 	local hooks = vhooks_transient[node]
 	if not hooks then
 		hooks = {}
 		vhooks_transient[node] = hooks
 	end
-	hooks[idx] = transient_value
+	hooks[hook_id] = transient_value
+end
+
+local function get_hook_transient(node, hook_id)
+	local hooks = vhooks_transient[node]
+	if hooks then return hooks[hook_id] end
 end
 
 --------------------------------------------------------------------------------
@@ -1879,7 +1899,44 @@ function lib.msg_broadcast(handle, msg, resent)
 	end
 end
 
----Isolate a side effect from the rendering algorithm. Similar to React's
+---Create a reactive state that will persist across renders and cause the
+---element to re-render when state changes. The value of the state will be
+---written to `storage` and must be serializable.
+---
+---@param initial_state Relm.State|fun(props: Relm.Props): Relm.State The initial state, or a function that generates the initial state from the props. Note that this value is only evaluated when the state is created. To change the state later, you must use the `set_state` function.
+function lib.use_state(initial_state)
+	local node, index, state = setup_hook()
+
+	-- Set initial state if absent. We can't do this on a hydrating render as
+	-- it would cause writes to `storage`.
+	if (not render_is_hydrating) and (state == nil) then
+		if type(initial_state) == "function" then
+			initial_state = initial_state(vget_props(node))
+		end
+		state = { initial_state }
+		set_hook_state(node, index, state)
+	end
+
+	-- Create setter. This needs to be done on rehydration as it is a
+	-- closure.
+	local setter = get_hook_transient(node, index)
+	if not setter then
+		setter = function(new_state)
+			local _hook_state = get_hook_state(node, index)
+			local _state_value = _hook_state and _hook_state[1]
+			if type(new_state) == "function" then
+				new_state = new_state(_state_value)
+			end
+			_hook_state[1] = new_state
+			if node and node.type then return defer_render_for_node(node) end
+		end
+		set_hook_transient(node, index, setter)
+	end
+
+	return state and state[1], setter
+end
+
+---Lift a side effect out of the rendering algorithm. Similar to React's
 ---`useEffect` hook, this will run the given `callback` and `cleanup` functions
 ---in the following way:
 ---
@@ -1896,38 +1953,38 @@ end
 ---@param callback fun(me: Relm.Handle, current_key: Relm.EffectKey, previous_key: Relm.EffectKey?): any Callback that runs on creation or whenever the effect key changes as defined by shallow comparison. Return value will be passed to the next `cleanup` when it runs.
 ---@param cleanup? fun(previous_callback_return: any) Cleanup that runs on destruction; the previous cleanup will be run when the effect key changes as well.
 function lib.use_effect(effect_key, callback, cleanup)
-	if not hook_node then
-		error("relm.use_effect: must be called during `render` of a Relm element.")
-	end
 	if effect_key == nil then
 		error("relm.use_effect: effect key may not be `nil`")
 	end
-	local index, state = setup_hook(true)
-	---@cast state table
-	local last_effect_key = state.effect_key
-	local last_callback_return = state.callback_return
-	local last_hook_node = hook_node
-	local last_cleanup = get_hook_cleanup(hook_node, index)
+	local node, index, state = setup_hook()
+	local last_effect_key = state and state[1]
+	local last_callback_return = state and state[2]
+	local last_hook_node = node
+	local last_cleanup = get_hook_cleanup(node, index)
 	if render_is_hydrating then
 		-- Hydrating render, restore cleanup function but do nothing else
 		if cleanup then
 			set_hook_cleanup(
-				hook_node,
+				node,
 				index,
 				function() cleanup(last_callback_return) end
 			)
 		end
 	else
+		if not state then
+			state = {}
+			set_hook_state(node, index, state)
+		end
 		if not shallow_eq(effect_key, last_effect_key) then
 			enqueue_post_render_effect(function()
-				state.effect_key = effect_key
+				state[1] = effect_key
 				if last_cleanup then last_cleanup() end
 				local current_callback_return = callback(
 					last_hook_node --[[@as Relm.Handle]],
 					effect_key,
 					last_effect_key
 				)
-				state.callback_return = current_callback_return
+				state[2] = current_callback_return
 				if cleanup then
 					set_hook_cleanup(
 						last_hook_node,
@@ -1958,17 +2015,14 @@ end
 ---@return Relm.Handle handle Handle to this element for later use with `invoke_closure`
 ---@return Relm.Closure closure_ref A reference to the closure that can be stored and used in event handlers.
 function lib.use_closure(closure)
-	if not hook_node then
-		error("relm.use_closure: must be called during `render` of a Relm element.")
-	end
 	if type(closure) ~= "function" then
 		error("relm.use_closure: closure must be a function.")
 	end
-	local index = setup_hook(false)
-	set_hook_transient(hook_node, index, closure)
+	local node, index = setup_hook()
+	set_hook_transient(node, index, closure)
 
 	-- This is needed due to a stylua bug
-	local handle = hook_node --[[@as Relm.Handle]]
+	local handle = node --[[@as Relm.Handle]]
 	return handle, index --[[@as Relm.Closure]]
 end
 
