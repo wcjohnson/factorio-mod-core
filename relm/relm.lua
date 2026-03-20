@@ -192,6 +192,10 @@ local STYLE_KEYS = {
 ---your game. Use only designated Relm APIs with handles.
 ---@class (exact) Relm.Handle
 
+---Opaque reference to a closure. Safe for use in `storage`. DO NOT use these
+---values except through the associated APIs.
+---@class (exact) Relm.Closure
+
 ---Definition of a reusable element distinguished by its name.
 ---@class (exact) Relm.ElementDefinition
 ---@field public name string The name of this element. Must be unique across the Lua state.
@@ -214,6 +218,8 @@ local STYLE_KEYS = {
 ---@alias Relm.State string|number|int|boolean|table|nil
 
 ---@alias Relm.Children Relm.Node|Relm.Node[]|nil
+
+---@alias Relm.RenderFn fun(props: Relm.Props, state?: Relm.State): Relm.Children
 
 ---@alias Relm.QueryResponse string|number|int|boolean|table|nil
 
@@ -248,6 +254,7 @@ local registry = {}
 
 ---@class (exact) Relm.Internal.Root
 ---@field public id uint The id of the root.
+---@field public relm_version string The version of Relm this root was created with. Used to detect when a root was created with an incompatible version of Relm and should be destroyed.
 ---@field public container_element LuaGuiElement The element the root was rendered into.
 ---@field public name_in_container string `root_element` name within the `container_element` children set.
 ---@field public root_element LuaGuiElement The rendered root element.
@@ -269,7 +276,6 @@ local registry = {}
 ---@field public elem? LuaGuiElement The Lua element this node maps to, if a real element.
 ---@field public index? uint Index in parent node
 ---@field public parent? Relm.Internal.VNode Parent of this node.
----@field public hooks? table<uint, any> Hook data for this node, if it has hooks.
 ---@field public root_id Relm.RootId Contains the root id of the vtree containing this node.
 
 ---@class (exact) Relm.Internal.PaintContext
@@ -286,8 +292,13 @@ local vprops = setmetatable({}, { __mode = "k" })
 
 ---Map from vnodes to hook transient data
 ---MP SAFETY: repopulated `on_load` by full hydration
----@type table<Relm.Internal.VNode, table<uint, table>>
+---@type table<Relm.Internal.VNode, table<uint, any>>
 local vhooks_transient = setmetatable({}, { __mode = "k" })
+
+---Map from vnodes to hook cleanup functions
+---MP SAFETY: repopulated `on_load` by full hydration
+---@type table<Relm.Internal.VNode, table<uint, fun(state: table?, transient: any?)>>
+local vhooks_cleanup = setmetatable({}, { __mode = "k" })
 
 local function noop() end
 
@@ -497,15 +508,13 @@ local function vprune(vnode)
 	end
 
 	-- Cleanup effects
-	local transients = vhooks_transient[vnode]
-	if transients then
-		for index, transient in pairs(transients) do
-			local cleanup = transient.cleanup
-			if cleanup then
-				local hook_state = vnode.hooks and vnode.hooks[index]
-				if hook_state then transient.cleanup(hook_state.callback_return) end
-			end
+	local cleanups = vhooks_cleanup[vnode]
+	if cleanups then
+		local transients = vhooks_transient[vnode]
+		for index, cleanup in pairs(cleanups) do
+			cleanup(vnode[index], transients and transients[index])
 		end
+		vhooks_cleanup[vnode] = nil
 	end
 
 	-- Cleanup node data.
@@ -688,6 +697,7 @@ end
 vhydrate = function(vnode, node)
 	-- TODO: any of these conditions will break all relm guis after a save/rl
 	-- how to best notify user?
+	-- TODO: we should probably panic by destroying the associated root altogether which is most likely the correct behavior.
 	if not node or not vnode or not node.props or node.type ~= vnode.type then
 		if strace then
 			strace(
@@ -1031,7 +1041,7 @@ local function vpaint(vnode, context, same)
 
 	if has_manual_paint then
 		-- Manual painted nodes are responsible for painting their children, so we don't recurse.
-		props.manual_paint(vnode.elem, props)
+		return props.manual_paint(vnode.elem, props)
 	else
 		-- Handle children
 		local vchildren = vnode.children or EMPTY
@@ -1216,6 +1226,11 @@ local function exit_side_effect_barrier() barrier_count = barrier_count - 1 end
 
 local function is_in_side_effect_barrier() return (barrier_count > 0) end
 
+---@param effect fun()
+local function enqueue_post_render_effect(effect)
+	post_render_effects[#post_render_effects + 1] = effect
+end
+
 local function run_post_render_effects()
 	for i = #post_render_effects, 1, -1 do
 		post_render_effects[i]()
@@ -1385,42 +1400,53 @@ local function vmsg_broadcast(vnode, payload, resent)
 	return vmsg_broadcast_impl(vnode, payload, resent)
 end
 
----Set up state management for a render hook. Should be called precisely once
----per hook per render. Returns the hook state and transient state if requested.
 ---@param wants_state boolean If `true`, the hook will have a state object that is stored in `storage`. This data must be serializable and will be saved with the savegame.
----@param wants_transient boolean If `true` the hook will have transient data that exists only in the current Lua state. This data can be any Lua value but is NOT persisted during save games. This is useful for things like cleanup functions that can't be serialized, however it must be reconstructed on every render.
+---@return int hook_index The index of this hook in the current render. Can be used to associate this hook to external data.
 ---@return table? state The hook state object, or `nil` if `wants_state` is falsy
----@return table? transient The hook transient object, or `nil` if `wants_transient` is falsy
-local function setup_hook(wants_state, wants_transient)
+local function setup_hook(wants_state)
 	hook_num = hook_num + 1
 	local node = hook_node --[[@as Relm.Internal.VNode]]
-	local state, transient
+	local state
 	if wants_state then
-		local hooks = node.hooks
-		if not hooks then
-			node.hooks = {}
-			hooks = node.hooks
-		end
-		---@cast hooks table<integer, any>
-		state = hooks[hook_num]
+		state = node[hook_num]
 		if not state then
-			hooks[hook_num] = {}
-			state = hooks[hook_num]
+			node[hook_num] = {}
+			state = node[hook_num]
 		end
 	end
-	if wants_transient then
-		local hooks = vhooks_transient[node]
-		if not hooks then
-			hooks = {}
-			vhooks_transient[node] = hooks
-		end
-		transient = hooks[hook_num]
-		if not transient then
-			transient = {}
-			hooks[hook_num] = transient
-		end
+	return hook_num, state
+end
+
+---@param node Relm.Internal.VNode
+---@param idx integer
+---@param fn? fun(state: table?, transient: any?)
+local function set_hook_cleanup(node, idx, fn)
+	local cleanup = vhooks_cleanup[node]
+	if (not cleanup) and fn then
+		cleanup = {}
+		vhooks_cleanup[node] = cleanup
 	end
-	return state, transient
+	if cleanup then cleanup[idx] = fn end
+end
+
+---@param node Relm.Internal.VNode
+---@param idx integer
+---@return fun(state: table?, transient: any?)? cleanup Cleanup function for this hook, or `nil` if no cleanup was registered
+local function get_hook_cleanup(node, idx)
+	local cleanup = vhooks_cleanup[node]
+	if cleanup then return cleanup[idx] end
+end
+
+---@param node Relm.Internal.VNode
+---@param idx integer
+---@param transient_value any
+local function set_hook_transient(node, idx, transient_value)
+	local hooks = vhooks_transient[node]
+	if not hooks then
+		hooks = {}
+		vhooks_transient[node] = hooks
+	end
+	hooks[idx] = transient_value
 end
 
 --------------------------------------------------------------------------------
@@ -1759,6 +1785,17 @@ function lib.define_element(definition)
 	end
 end
 
+---Define a new Relm element.
+---@param name string The name of the element. Must be unique across all Relm element definitions.
+---@param render Relm.RenderFn The render function for this element.
+---@return Relm.NodeFactory #A factory function that creates a node of this type.
+function lib.define(name, render)
+	return lib.define_element({
+		name = name,
+		render = render,
+	})
+end
+
 ---Generate a node for an element of the given named type with the given
 ---props. Returns `nil` if the type was invalid.
 ---@param element_type string The type of element to create.
@@ -1865,27 +1902,42 @@ function lib.use_effect(effect_key, callback, cleanup)
 	if effect_key == nil then
 		error("relm.use_effect: effect key may not be `nil`")
 	end
-	local state, transient = setup_hook(true, true)
+	local index, state = setup_hook(true)
+	---@cast state table
 	local last_effect_key = state.effect_key
 	local last_callback_return = state.callback_return
-	local last_cleanup = transient.cleanup
 	local last_hook_node = hook_node
+	local last_cleanup = get_hook_cleanup(hook_node, index)
 	if render_is_hydrating then
 		-- Hydrating render, restore cleanup function but do nothing else
-		transient.cleanup = cleanup
-		return
+		if cleanup then
+			set_hook_cleanup(
+				hook_node,
+				index,
+				function() cleanup(last_callback_return) end
+			)
+		end
 	else
 		if not shallow_eq(effect_key, last_effect_key) then
-			post_render_effects[#post_render_effects + 1] = function()
+			enqueue_post_render_effect(function()
 				state.effect_key = effect_key
-				if last_cleanup then last_cleanup(last_callback_return) end
-				transient.cleanup = cleanup
-				state.callback_return = callback(
+				if last_cleanup then last_cleanup() end
+				local current_callback_return = callback(
 					last_hook_node --[[@as Relm.Handle]],
 					effect_key,
 					last_effect_key
 				)
-			end
+				state.callback_return = current_callback_return
+				if cleanup then
+					set_hook_cleanup(
+						last_hook_node,
+						index,
+						function() cleanup(current_callback_return) end
+					)
+				else
+					set_hook_cleanup(last_hook_node, index, nil)
+				end
+			end)
 		end
 	end
 end
@@ -1899,6 +1951,37 @@ function lib.use_handle()
 		error("relm.use_handle: must be called during `render` of a Relm element.")
 	end
 	return hook_node --[[@as Relm.Handle]]
+end
+
+---Hook that creates a persistent serializable reference to a closure.
+---@param closure function The closure to reference.
+---@return Relm.Handle handle Handle to this element for later use with `invoke_closure`
+---@return Relm.Closure closure_ref A reference to the closure that can be stored and used in event handlers.
+function lib.use_closure(closure)
+	if not hook_node then
+		error("relm.use_closure: must be called during `render` of a Relm element.")
+	end
+	if type(closure) ~= "function" then
+		error("relm.use_closure: closure must be a function.")
+	end
+	local index = setup_hook(false)
+	set_hook_transient(hook_node, index, closure)
+
+	-- This is needed due to a stylua bug
+	local handle = hook_node --[[@as Relm.Handle]]
+	return handle, index --[[@as Relm.Closure]]
+end
+
+---Execute a closure previously stored with `use_closure` on the given node.
+---@param handle Relm.Handle The node on which the closure was created.
+---@param closure_ref Relm.Closure The reference to the closure returned by `use_closure`.
+---@param ... any Arguments to pass to the closure.
+---@return any result The return value of the closure, if it exists.
+function lib.invoke_closure(handle, closure_ref, ...)
+	local hooks = vhooks_transient[handle]
+	if not hooks then return end
+	local closure = hooks[closure_ref]
+	if type(closure) == "function" then return closure(...) end
 end
 
 --------------------------------------------------------------------------------

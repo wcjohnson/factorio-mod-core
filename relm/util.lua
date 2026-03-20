@@ -68,6 +68,40 @@ function lib.use_event(on_event)
 	relm.use_effect(on_event, use_event_binder, use_event_unbinder)
 end
 
+event.register_dynamic_handler("relm_closure", function(ev, arg, ...)
+	local handle = arg[1]
+	local closure = arg[2]
+	local event_name = arg[3]
+	if relm.is_valid(handle) then
+		relm.invoke_closure(handle, closure, handle, event_name, ...)
+	else
+		return event.REMOVE_BINDING
+	end
+end)
+
+local function events_unbinder(ids)
+	if ids then
+		for _, id in pairs(ids) do
+			event.dynamic_unbind(id)
+		end
+	end
+end
+
+---@param events Core.EventName|Core.EventName[]
+---@param handler fun(me: Relm.Handle, event: Core.EventName, ...: any)
+function lib.use_event_handler(events, handler)
+	local _, closure = relm.use_closure(handler)
+	relm.use_effect(events, function(me, _events)
+		---@cast _events Core.EventName|Core.EventName[]
+		local ids = {}
+		for _, ev in tlib.iter(_events) do
+			ids[#ids + 1] =
+				event.dynamic_bind(ev, "relm_closure", { me, closure, ev })
+		end
+		return ids
+	end, events_unbinder)
+end
+
 --------------------------------------------------------------------------------
 -- Scheduler -> Relm
 --------------------------------------------------------------------------------
