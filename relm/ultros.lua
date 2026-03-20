@@ -287,13 +287,6 @@ lib.RtMultilineLabel = function(caption)
 	})
 end
 
--- TODO: implement barriers
-local Barrier = relm.define_element({
-	name = "Barrier",
-	render = function(props) return props.children end,
-	message = function() return true end,
-})
-
 lib.Titlebar = relm.define_element({
 	name = "Titlebar",
 	render = function(props)
@@ -474,67 +467,57 @@ lib.RadioButton = lib.customize_primitive({
 	type = "radiobutton",
 }, checkbox_customizer)
 
-lib.WellSection = relm.define_element({
-	name = "WellSection",
-	render = function(props, state)
-		local collapsed = (state or {}).collapsed
-		local visible = true
-		if props.visible == false then visible = false end
-		local caption_element = props.caption_element
-		if props.caption then
-			caption_element = Pr({
-				type = "label",
-				style = "subheader_caption_label",
-				caption = props.caption,
-			})
-		end
-
-		return VF({
-			bottom_margin = 6,
-			horizontally_squashable = true,
-			visible = visible,
-		}, {
-			Pr({
-				type = "frame",
-				style = "subheader_frame",
-				horizontally_stretchable = true,
-				bottom_margin = 4,
-			}, {
-				caption_element,
-				lib.If(props.decorate, HF({ horizontally_stretchable = true }, {})),
-				lib.CallIf(props.decorate, props.decorate, props, state),
-			}),
-			VF({
-				left_padding = 8,
-				right_padding = 8,
-				visible = not collapsed,
-				horizontally_squashable = true,
-			}, props.children),
+lib.WellSection = relm.define("WellSection", function(props)
+	local collapsed = not not props.collapsed
+	local visible = true
+	if props.visible == false then visible = false end
+	local caption_element = props.caption_element
+	if props.caption then
+		caption_element = Pr({
+			type = "label",
+			style = "subheader_caption_label",
+			caption = props.caption,
 		})
-	end,
-	state = function(props) return { collapsed = props.collapsed } end,
-})
+	end
 
-lib.WellFold = lib.customize("WellSection", {
-	collapsed = true,
-	decorate = function(_, state)
+	return VF({
+		bottom_margin = 6,
+		horizontally_squashable = true,
+		visible = visible,
+	}, {
+		Pr({
+			type = "frame",
+			style = "subheader_frame",
+			horizontally_stretchable = true,
+			bottom_margin = 4,
+		}, {
+			caption_element,
+			lib.If(props.decorate, HF({ horizontally_stretchable = true }, {})),
+			lib.CallIf(props.decorate, props.decorate, props),
+		}),
+		VF({
+			left_padding = 8,
+			right_padding = 8,
+			visible = not collapsed,
+			horizontally_squashable = true,
+		}, props.children),
+	})
+end)
+
+lib.WellFold = relm.define("WellFold", function(props)
+	local collapsed, set_collapsed = relm.use_state(true)
+	local next_props = assign({}, props)
+	next_props.collapsed = collapsed
+	next_props.decorate = function()
 		return lib.SpriteButton({
 			style = "frame_action_button",
 			sprite = "utility/add_white",
-			on_click = "toggle_fold",
-			toggled = not state.collapsed,
+			on_click = function() set_collapsed(not collapsed) end,
+			toggled = not collapsed,
 		})
-	end,
-	message_handler = function(me, payload)
-		if payload.key == "toggle_fold" then
-			relm.set_state(
-				me,
-				function(prev) return { collapsed = not (prev or {}).collapsed } end
-			)
-			return true
-		end
-	end,
-})
+	end
+	return lib.WellSection(next_props)
+end)
 
 lib.Switch = lib.customize_primitive({
 	type = "switch",
