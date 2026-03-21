@@ -19,6 +19,10 @@ local EMPTY = setmetatable({}, { __newindex = function() end })
 -- If they change something in factorio look here first for what needs updated
 --------------------------------------------------------------------------------
 
+---Version number of Relm storage internals. Used to discard roots that
+---may not conform to updated formats in the absence of migrations.
+local RELM_DATA_VERSION = 1
+
 -- h/t `flib.gui` for the below code which serves much the same function here
 
 --- A GUI element definition.
@@ -215,11 +219,13 @@ local STYLE_KEYS = {
 
 ---@alias Relm.Props {children?: Relm.Children, [string|int]:any}
 
----@alias Relm.State string|number|int|boolean|table|nil
+---@alias Relm.StateValue string|number|int|boolean|nil
+
+---@alias Relm.State Relm.StateValue|table<string|int, Relm.State>
 
 ---@alias Relm.Children Relm.Node|Relm.Node[]|nil
 
----@alias Relm.RenderFn fun(props: Relm.Props, state?: Relm.State): Relm.Children
+---@alias Relm.RenderFn fun(props: Relm.Props): Relm.Children
 
 ---@alias Relm.QueryResponse string|number|int|boolean|table|nil
 
@@ -254,7 +260,7 @@ local registry = {}
 
 ---@class (exact) Relm.Internal.Root
 ---@field public id uint The id of the root.
----@field public relm_version string The version of Relm this root was created with. Used to detect when a root was created with an incompatible version of Relm and should be destroyed.
+---@field public data_version int The data version this root was created with. Used to detect when a root was created with an incompatible version of Relm and should be destroyed.
 ---@field public container_element LuaGuiElement The element the root was rendered into.
 ---@field public name_in_container string `root_element` name within the `container_element` children set.
 ---@field public root_element LuaGuiElement The rendered root element.
@@ -366,7 +372,6 @@ local removed_keys = setmetatable({}, { __mode = "k" })
 -- be one frame.
 local optimae = 0
 local pessimae = 0
-local root_touched = 0
 local elements = 0
 
 -- Side effect and deferred rendering states
@@ -386,6 +391,11 @@ local dead_roots = {}
 local pending_render = false
 ---Side-effects lifted out of render operation
 local post_render_effects = {}
+
+---@param effect fun()
+local function enqueue_post_render_effect(effect)
+	post_render_effects[#post_render_effects + 1] = effect
+end
 
 --------------------------------------------------------------------------------
 -- VNODES
@@ -512,9 +522,22 @@ local function vprune(vnode)
 	if cleanups then
 		local transients = vhooks_transient[vnode]
 		for index, cleanup in pairs(cleanups) do
-			cleanup(vnode[index], transients and transients[index])
+			local hook_state = vnode[index]
+			local hook_transient = transients and transients[index]
+			enqueue_post_render_effect(
+				function() cleanup(hook_state, hook_transient) end
+			)
 		end
 		vhooks_cleanup[vnode] = nil
+	end
+	if is_primitive(vnode) then
+		local props = vprops[vnode]
+		if props then
+			local on_cleanup = props.on_cleanup
+			if on_cleanup then
+				enqueue_post_render_effect(function() on_cleanup(vnode, props) end)
+			end
+		end
 	end
 
 	-- Cleanup node data.
@@ -760,7 +783,6 @@ local function vpaint_context_destroy(context)
 	local elem = context.elem
 	if elem and elem.valid then
 		if context.root_name then
-			root_touched = root_touched + 1
 			local child = elem[context.root_name]
 			if child then return vpaint_element_destroy(context, child) end
 		else
@@ -809,7 +831,6 @@ local function vpaint_context_create(context, props)
 		-- Create
 		local new_elem
 		if context.root_name then
-			root_touched = root_touched + 1
 			addable_props.name = context.root_name
 		else
 			addable_props.index = context.index
@@ -943,8 +964,8 @@ local function vpaint(vnode, context, same)
 		end
 		return
 	end
-	local elem_changed = false
 
+	local elem_changed = false
 	if not same then
 		vnode.elem, elem_changed = vpaint_context_diff(context, props, vnode)
 	else
@@ -1087,8 +1108,6 @@ local function vpaint_stats(vnode, context, same)
 	optimae = 0
 	pessimae = 0
 	elements = 0
-	-- TODO: remove root_touched
-	root_touched = 0
 	vpaint(vnode, context, same)
 	if strace then
 		strace(
@@ -1229,11 +1248,6 @@ local function exit_side_effect_barrier() barrier_count = barrier_count - 1 end
 
 local function is_in_side_effect_barrier() return (barrier_count > 0) end
 
----@param effect fun()
-local function enqueue_post_render_effect(effect)
-	post_render_effects[#post_render_effects + 1] = effect
-end
-
 local function run_post_render_effects()
 	for i = #post_render_effects, 1, -1 do
 		post_render_effects[i]()
@@ -1296,7 +1310,6 @@ local function deferred_render()
 		-- Don't try to repaint dead roots
 		dirty_roots[root] = nil
 		-- Kill the virtual root
-		-- XXX: investigate the side effect implications here.
 		vprune(root.vtree_root)
 		-- Destroy the rendered root element and all children
 		local root_element = root.root_element
