@@ -559,7 +559,8 @@ local function get_text_value(text, is_numeric, is_float)
 	end
 end
 
-lib.Input = lib.customize_primitive({
+---@deprecated Use `lib.Input` instead, which has better handling for dirty state and unconfirmed changes.
+lib.LegacyInput = lib.customize_primitive({
 	type = "textfield",
 	lose_focus_on_confirm = true,
 }, function(props)
@@ -595,10 +596,56 @@ lib.Input = lib.customize_primitive({
 			end
 		)
 	end
-	props.query_handler = function(me, payload)
-		if payload.key == "value" and me.elem then return true, me.elem.text end
+	props.query_handler = function(me, payload, props2)
+		if payload.key == "value" and me.elem then
+			return true,
+				get_text_value(me.elem.text, props2.numeric, props2.allow_decimal)
+		end
 		return false
 	end
+end)
+
+lib.Input = lib.customize_primitive({
+	type = "textfield",
+	lose_focus_on_confirm = true,
+}, function(props)
+	if props.value then
+		props.initial_text = tostring(props.value)
+		props.value = nil
+	end
+
+	local on_confirm = props.on_confirm or noop --[[@as function]]
+	local on_change = props.on_change or noop --[[@as function]]
+	local on_dirty = props.on_dirty or noop --[[@as function]]
+	props.on_confirm = nil
+	props.on_change = nil
+	props.on_dirty = nil
+
+	props.listen = true
+	props.message_handler = lib.handle_gui_events(
+		defines.events.on_gui_confirmed,
+		function(me, gui_event, props2)
+			local my_elt = gui_event.element
+			on_confirm(
+				me,
+				get_text_value(my_elt.text, props2.numeric, props2.allow_decimal),
+				my_elt,
+				gui_event
+			)
+			on_dirty(false)
+		end,
+		defines.events.on_gui_text_changed,
+		function(me, gui_event, props2)
+			on_dirty(true)
+			local my_elt = gui_event.element
+			on_change(
+				me,
+				get_text_value(gui_event.text, props2.numeric, props2.allow_decimal),
+				my_elt,
+				gui_event
+			)
+		end
+	)
 end)
 
 lib.Tag = relm.define_element({
