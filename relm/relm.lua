@@ -1,5 +1,3 @@
-require("lib.core.require").require_guard("lib.core.relm.relm")
-
 local event = require("lib.core.event")
 
 local tremove = _G.table.remove
@@ -1694,26 +1692,41 @@ function lib.root_create(container_element, name, element_type, props)
 				"relm",
 				"paint",
 				"message",
-				"attempt to paint created root resulted in no rendered elements, destroying the root"
+				"attempt to paint created root resulted in no rendered elements; destroying the root"
 			)
 		end
-		lib.root_destroy(id)
+		lib.root_destroy(id, true)
 		return nil
 	end
+
+	event.raise("relm.root_created", {
+		root_id = id,
+		element = created_elt,
+		player_index = player_index,
+	})
 
 	return id, created_elt
 end
 
 ---Destoys a root and all associated child elements.
 ---@param id Relm.RootId? The ID of the root.
+---@param silent boolean? If `true`, the root will be destroyed without raising the `relm.root_destroyed` event.
 ---@return boolean success `true` if the root was successfully destroyed, `false` if the root was not found or an error occurred.
-function lib.root_destroy(id)
+function lib.root_destroy(id, silent)
 	if not id then return false end
 	local relm_state = storage._relm
 	if not relm_state then return false end
 	local root = relm_state.roots[id]
 	if not root then return false end
+	if dead_roots[root] then return true end
 	dead_roots[root] = true
+	if not silent then
+		event.raise("relm.root_destroyed", {
+			root_id = id,
+			element = root.root_element,
+			player_index = root.player_index,
+		})
+	end
 	defer_render()
 	return true
 end
