@@ -1,5 +1,6 @@
--- FLib styles required for Relm-based mods. These are identical to the base
--- FLib styles, of the same names.
+-- Global styles required for Relm-based mods. Some of these come from flib and
+-- in those case they are identical data with the same names so as not to
+-- conflict.
 -- This MUST be required in the Data Phase only!
 
 local styles = data.raw["gui-style"].default
@@ -468,4 +469,15 @@ styles.relm_raised_frame = {
 		shadow = styles.train_with_minimap_frame.graphical_set.shadow,
 	},
 	padding = 4,
+}
+
+styles.relm_label_signal_count_inventory = {
+	type = "label_style",
+	parent = "count_label",
+	size = 36,
+	width = 36,
+	horizontal_align = "right",
+	vertical_align = "bottom",
+	right_padding = 2,
+	parent_hovered_font_color = { 1, 1, 1 },
 }

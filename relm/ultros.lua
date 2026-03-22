@@ -839,7 +839,7 @@ local function paint_signal_counts(elem, primitive_props)
 			button.elem_value = signal
 			button.add({
 				type = "label",
-				style = "cs2_label_signal_count_inventory",
+				style = "relm_label_signal_count_inventory",
 				ignored_by_interaction = true,
 				caption = caption,
 			})
