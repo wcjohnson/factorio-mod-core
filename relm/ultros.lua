@@ -87,28 +87,6 @@ function lib.transform(mapper)
 	end
 end
 
----Transform Factorio events given by their `defines.events` name to new
----message keys. Args are given as `event1, key1, event2, key2, ...` pairs.
----The new key will be used in the `key` field of the transformed message payload.
----@return Relm.Element.MessageHandlerWrapper
-function lib.map_events(...)
-	local event_map = {}
-	for i = 1, select("#", ...), 2 do
-		event_map[select(i, ...) or {}] = select(i + 1, ...)
-	end
-	return lib.transform(function(msg)
-		if msg.key == "factorio_event" then
-			---@cast msg Relm.MessagePayload.FactorioEvent
-			local new_key = event_map[msg.name]
-			if new_key then
-				return { key = new_key, event = msg.event }
-			else
-				return msg
-			end
-		end
-	end)
-end
-
 function lib.handle_gui_events(...)
 	local event_map = {}
 	for i = 1, select("#", ...), 2 do
