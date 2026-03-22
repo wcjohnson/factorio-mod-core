@@ -40,16 +40,18 @@ end
 --------------------------------------------------------------------------------
 
 -- Generic handler to convert dynamic events to relm messages
-event.register_dynamic_handler(
-	"relm_message",
-	function(ev, arg, ...)
-		relm.msg(arg[1], {
+event.register_dynamic_handler("relm_message", function(ev, arg, ...)
+	local handle = arg[1]
+	if relm.is_valid(handle) then
+		relm.msg(handle, {
 			key = arg[2],
 			event_name = ev,
 			...,
 		})
+	else
+		return event.REMOVE_BINDING
 	end
-)
+end)
 
 local function use_event_binder(handle, event_name)
 	return event.dynamic_bind(event_name, "relm_message", { handle, event_name })
