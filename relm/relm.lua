@@ -262,6 +262,7 @@ local registry = {}
 ---@field public container_element LuaGuiElement The element the root was rendered into.
 ---@field public name_in_container string `root_element` name within the `container_element` children set.
 ---@field public root_element LuaGuiElement The rendered root element.
+---@field public reg_num uint64 The registration number returned by `script.register_on_object_destroyed` for the root element, used to detect when the root element is destroyed.
 ---@field public player_index int The player index of the owning player of the root element.
 ---@field public vtree_root Relm.Internal.VNode The root of the virtual tree.
 ---@field public root_element_type string Relm element type used to render the root
@@ -271,6 +272,7 @@ local registry = {}
 ---@class (exact) Relm.Internal.Storage
 ---@field public roots table<int, Relm.Internal.Root> Map from root ids to root data.
 ---@field public root_counter int Counter for generating new root ids.
+---@field public reg_num_map table<uint64, int> Map from `script.register_on_object_destroyed` registration numbers to root ids, used to detect when a root element is destroyed.
 
 ---Internal representation of a vtree node. This is stored in state.
 ---@class (exact) Relm.Internal.VNode
@@ -1314,6 +1316,9 @@ local function deferred_render()
 		if root_element and root_element.valid then root_element.destroy() end
 		-- Quash the state
 		relm_state.roots[root.id] = nil
+		if relm_state.reg_num_map and root.reg_num then
+			relm_state.reg_num_map[root.reg_num] = nil
+		end
 		dead_roots[root] = nil
 	end
 
@@ -1576,14 +1581,14 @@ end)
 function lib.init_storage()
 	if not storage._relm then
 		-- Lint diagnostic here is ok. We can't disable it because of luals bug.
-		storage._relm = { roots = {}, root_counter = 0 } --[[@as Relm.Internal.Storage]]
+		storage._relm = { roots = {}, root_counter = 0, reg_num_map = {} } --[[@as Relm.Internal.Storage]]
 	end
 end
 
 -- Create storage on startup
 event.bind("on_startup", function()
 	-- Lint diagnostic here is ok. We can't disable it because of luals bug.
-	storage._relm = { roots = {}, root_counter = 0 } --[[@as Relm.Internal.Storage]]
+	storage._relm = { roots = {}, root_counter = 0, reg_num_map = {} } --[[@as Relm.Internal.Storage]]
 end)
 
 -- Destroy all roots on shutdown.
@@ -1656,6 +1661,7 @@ function lib.root_create(container_element, name, element_type, props)
 	---@diagnostic disable-next-line: missing-fields
 	relm_state.roots[id] = {
 		id = id,
+		data_version = RELM_DATA_VERSION,
 		player_index = player_index,
 		container_element = container_element,
 		name_in_container = name,
@@ -1699,6 +1705,12 @@ function lib.root_create(container_element, name, element_type, props)
 		return nil
 	end
 
+	local reg_num = script.register_on_object_destroyed(created_elt)
+	relm_state.roots[id].reg_num = reg_num
+	-- Migration
+	if not relm_state.reg_num_map then relm_state.reg_num_map = {} end
+	relm_state.reg_num_map[reg_num] = id
+
 	event.raise("relm.root_created", {
 		root_id = id,
 		element = created_elt,
@@ -1721,15 +1733,28 @@ function lib.root_destroy(id, silent)
 	if dead_roots[root] then return true end
 	dead_roots[root] = true
 	if not silent then
-		event.raise("relm.root_destroyed", {
-			root_id = id,
-			element = root.root_element,
-			player_index = root.player_index,
-		})
+		local ev = { root_id = id, player_index = root.player_index }
+		if root.root_element and root.root_element.valid then
+			ev.element = root.root_element
+		end
+		event.raise("relm.root_destroyed", ev)
 	end
 	defer_render()
 	return true
 end
+
+-- When a root element is destroyed, perhaps by a process outside Relm's
+-- control, ensure referential integrity is maintained by destroying the
+-- Relm state as well.
+event.bind(defines.events.on_object_destroyed, function(ev)
+	if ev.type ~= defines.target_type.gui_element then return end
+	local relm_state = storage._relm
+	if not relm_state then return end
+	-- Migration may cause reg_num_map to be missing.
+	if not relm_state.reg_num_map then return end
+	local id = relm_state.reg_num_map[ev.registration_number]
+	if id then lib.root_destroy(id) end
+end)
 
 ---Returns a handle to the root element with the given ID.
 ---@param id Relm.RootId?
