@@ -363,6 +363,34 @@ lib.Dropdown = lib.customize_primitive({
 	props.value = nil
 end)
 
+lib.Listbox = lib.customize_primitive({
+	type = "list-box",
+}, function(props)
+	if props.on_change then
+		props.listen = true
+		props.message_handler = lib.handle_gui_events(
+			defines.events.on_gui_selection_state_changed,
+			function(me, gui_event, props2)
+				local my_elt = gui_event.element
+				local value = my_elt.selected_index
+				if props2.options then value = props2.options[value].key end
+				run_event_handler(props2.on_change, me, value, my_elt, gui_event)
+			end
+		)
+	end
+	if props.options then
+		local items = {}
+		local selected_index = nil
+		for i, option in ipairs(props.options) do
+			table.insert(items, option.caption)
+			if option.key == props.value then selected_index = i end
+		end
+		props.items = items
+		props.selected_index = selected_index
+	end
+	props.value = nil
+end)
+
 lib.Labeled = relm.define_element({
 	name = "Labeled",
 	render = function(props)
