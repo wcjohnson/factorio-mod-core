@@ -1061,7 +1061,7 @@ local function vpaint(vnode, context, same)
 	elem.tags = tags
 
 	-- Handle `ref`s
-	if has_ref and elem_changed then props.ref(vnode.elem, vnode) end
+	if has_ref then props.ref(vnode.elem, vnode) end
 
 	if has_manual_paint then
 		-- Manual painted nodes are responsible for painting their children, so we don't recurse.
