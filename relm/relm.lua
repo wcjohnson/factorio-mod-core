@@ -1,4 +1,4 @@
-local event = require("lib.core.event")
+---@diagnostic disable: inject-field
 
 local tremove = _G.table.remove
 local type = _G.type
@@ -6,9 +6,11 @@ local min = _G.math.min
 local error = _G.error
 local strfind = _G.string.find
 local pairs = _G.pairs
+local setmetatable = _G.setmetatable
 
 ---@class Relm.Lib
 local lib = {}
+_G.__RELM__ = lib
 
 local EMPTY = setmetatable({}, { __newindex = function() end })
 
@@ -23,8 +25,7 @@ local RELM_DATA_VERSION = 1
 
 -- h/t `flib.gui` for the below code which serves much the same function here
 
---- A GUI element definition.
---- @class Relm.PrimitiveDefinition: LuaGuiElement.add_param.button|LuaGuiElement.add_param.camera|LuaGuiElement.add_param.checkbox|LuaGuiElement.add_param.choose_elem_button|LuaGuiElement.add_param.drop_down|LuaGuiElement.add_param.flow|LuaGuiElement.add_param.frame|LuaGuiElement.add_param.line|LuaGuiElement.add_param.list_box|LuaGuiElement.add_param.minimap|LuaGuiElement.add_param.progressbar|LuaGuiElement.add_param.radiobutton|LuaGuiElement.add_param.scroll_pane|LuaGuiElement.add_param.slider|LuaGuiElement.add_param.sprite|LuaGuiElement.add_param.sprite_button|LuaGuiElement.add_param.switch|LuaGuiElement.add_param.tab|LuaGuiElement.add_param.table|LuaGuiElement.add_param.text_box|LuaGuiElement.add_param.textfield
+--- @alias Relm.PrimitiveDefinition LuaGuiElement.add_param
 
 --- Aggregate type of all possible GUI events.
 --- @alias Relm.GuiEventData EventData.on_gui_checked_state_changed|EventData.on_gui_click|EventData.on_gui_closed|EventData.on_gui_confirmed|EventData.on_gui_elem_changed|EventData.on_gui_location_changed|EventData.on_gui_opened|EventData.on_gui_selected_tab_changed|EventData.on_gui_selection_state_changed|EventData.on_gui_switch_state_changed|EventData.on_gui_text_changed|EventData.on_gui_value_changed
@@ -181,6 +182,12 @@ local STYLE_KEYS = {
 -- These types, along with the exports defined on `lib`, constitute the public
 -- API of Relm and should not be changed.
 --------------------------------------------------------------------------------
+
+---@class Relm.EventSink
+---@field public raise fun(event_name: string, ...: any): nil
+
+---@type Relm.EventSink
+local __EVENT_SINK__ = nil
 
 ---The primary output of `render` functions, representing nodes in the virtual
 ---tree.
@@ -1255,10 +1262,22 @@ local function run_post_render_effects()
 	end
 end
 
+local INVISIBLE_LINE = {
+	color = { 0, 0, 0, 0 },
+	width = 0,
+	from = { 0, 0 },
+	to = { 0, 0 },
+	surface = 1,
+}
+
 local function defer_render()
 	if pending_render then return end
 	pending_render = true
-	event.dynamic_subtick_trigger("relm.deferred_render", "render")
+	local obj = rendering.draw_line(INVISIBLE_LINE)
+	local rn = script.register_on_object_destroyed(obj)
+	local relm_state = storage._relm
+	relm_state.deferred_rn = rn
+	obj.destroy()
 end
 
 ---@param dirty_nodes table<Relm.Internal.VNode, true>
@@ -1334,8 +1353,6 @@ local function deferred_render()
 	pending_render = false
 	run_post_render_effects()
 end
-
-event.register_dynamic_handler("relm.deferred_render", deferred_render)
 
 ---@param vnode Relm.Internal.VNode
 ---@param state Relm.State?
@@ -1529,6 +1546,7 @@ end
 -- FACTORIO EVENT BINDING
 --------------------------------------------------------------------------------
 
+---Handle a Factorio gui event.
 ---@param ev Relm.GuiEventData
 local function dispatch(ev)
 	local element = ev.element
@@ -1558,14 +1576,25 @@ local function dispatch(ev)
 		end
 	end
 end
+lib.handle_on_gui_event = dispatch
 
--- Connect Relm to all Factorio GUI events.
-for id in pairs(gui_events) do
-	event.bind(id, dispatch)
+---Utility function to bind all Factorio GUI events to Relm dispatch. Note:
+---this will conflict with your own manual GUI event bindings if you
+---have any.
+function lib.bind_all_gui_events()
+	for id in pairs(gui_events) do
+		script.on_event(id, dispatch)
+	end
 end
 
--- Restore transient component states on load.
-event.bind("on_load", function()
+---Set Relm's event sink. Relm calls this function in the event it needs
+---to propagate a Relm event to your mod code.
+---@param sink Relm.EventSink
+function lib.set_event_sink(sink) __EVENT_SINK__ = sink end
+
+---Restore transient component states.
+---This MUST be called by consuming mods during `on_load`
+function lib.handle_on_load()
 	local relm_storage = storage._relm
 	if not relm_storage then return end
 	local roots = relm_storage.roots
@@ -1575,7 +1604,7 @@ event.bind("on_load", function()
 			{ type = root.root_element_type, props = root.root_props }
 		)
 	end
-end)
+end
 
 ---Initialize Relm's storage if it doesn't already exist.
 function lib.init_storage()
@@ -1585,21 +1614,68 @@ function lib.init_storage()
 	end
 end
 
--- Create storage on startup
-event.bind("on_startup", function()
-	-- Lint diagnostic here is ok. We can't disable it because of luals bug.
-	storage._relm = { roots = {}, root_counter = 0, reg_num_map = {} } --[[@as Relm.Internal.Storage]]
-end)
+---Consuming mods MUST call this in `on_init` unless using the Core Events
+---bindings.
+lib.handle_on_init = function() return lib.init_storage() end
 
--- Destroy all roots on shutdown.
-event.bind("on_shutdown", function()
-	local relm_storage = storage._relm
-	if not relm_storage then return end
-	local roots = relm_storage.roots
-	for id, _ in pairs(roots) do
-		lib.root_destroy(id)
+local GUI_ELEMENT_TARGET_TYPE = defines.target_type.gui_element
+local RENDER_OBJECT_TARGET_TYPE = defines.target_type.render_object
+
+---Consuming mods MUST call this in `on_object_destroyed`.
+---@param ev EventData.on_object_destroyed
+function lib.handle_on_object_destroyed(ev)
+	local ev_type = ev.type
+	if ev_type == RENDER_OBJECT_TARGET_TYPE then
+		local rn = ev.registration_number
+		local relm_state = storage._relm
+		if not relm_state then return end
+		if relm_state.deferred_rn == rn then
+			relm_state.deferred_rn = nil
+			deferred_render()
+		end
+	elseif ev_type == GUI_ELEMENT_TARGET_TYPE then
+		local rn = ev.registration_number
+		local relm_state = storage._relm
+		if not relm_state then return end
+		local reg_num_map = relm_state.reg_num_map
+		-- Migration may cause reg_num_map to be missing.
+		if not reg_num_map then return end
+		local id = reg_num_map[rn]
+		reg_num_map[rn] = nil
+		if id then lib.root_destroy(id) end
 	end
-end)
+end
+
+---Initialize Relm with the Core Events system. Must pass in the top level
+---`event` library.
+function lib.bootstrap_with_core_events(event)
+	__EVENT_SINK__ = event
+
+	-- Create storage on startup
+	event.bind("on_startup", function()
+		-- Lint diagnostic here is ok. We can't disable it because of luals bug.
+		storage._relm = { roots = {}, root_counter = 0, reg_num_map = {} } --[[@as Relm.Internal.Storage]]
+	end)
+
+	-- Destroy all roots on shutdown.
+	event.bind("on_shutdown", function()
+		local relm_storage = storage._relm
+		if not relm_storage then return end
+		local roots = relm_storage.roots
+		for id, _ in pairs(roots) do
+			lib.root_destroy(id)
+		end
+	end)
+
+	event.bind("on_load", lib.handle_on_load)
+
+	event.bind(defines.events.on_object_destroyed, lib.handle_on_object_destroyed)
+
+	-- Connect Relm to all Factorio GUI events.
+	for id in pairs(gui_events) do
+		event.bind(id, dispatch)
+	end
+end
 
 --------------------------------------------------------------------------------
 -- API: FACTORIO GUI EVENTS
@@ -1711,11 +1787,13 @@ function lib.root_create(container_element, name, element_type, props)
 	if not relm_state.reg_num_map then relm_state.reg_num_map = {} end
 	relm_state.reg_num_map[reg_num] = id
 
-	event.raise("relm.root_created", {
-		root_id = id,
-		element = created_elt,
-		player_index = player_index,
-	})
+	if __EVENT_SINK__ then
+		__EVENT_SINK__.raise("relm.root_created", {
+			root_id = id,
+			element = created_elt,
+			player_index = player_index,
+		})
+	end
 
 	return id, created_elt
 end
@@ -1737,24 +1815,11 @@ function lib.root_destroy(id, silent)
 		if root.root_element and root.root_element.valid then
 			ev.element = root.root_element
 		end
-		event.raise("relm.root_destroyed", ev)
+		if __EVENT_SINK__ then __EVENT_SINK__.raise("relm.root_destroyed", ev) end
 	end
 	defer_render()
 	return true
 end
-
--- When a root element is destroyed, perhaps by a process outside Relm's
--- control, ensure referential integrity is maintained by destroying the
--- Relm state as well.
-event.bind(defines.events.on_object_destroyed, function(ev)
-	if ev.type ~= defines.target_type.gui_element then return end
-	local relm_state = storage._relm
-	if not relm_state then return end
-	-- Migration may cause reg_num_map to be missing.
-	if not relm_state.reg_num_map then return end
-	local id = relm_state.reg_num_map[ev.registration_number]
-	if id then lib.root_destroy(id) end
-end)
 
 ---Returns a handle to the root element with the given ID.
 ---@param id Relm.RootId?
@@ -2103,6 +2168,7 @@ end
 ---@return boolean handled Whether the query was handled.
 ---@return Relm.QueryResponse? result The result of the query, if handled.
 function lib.query(handle, payload)
+	---@diagnostic disable-next-line: return-type-mismatch
 	return vquery(handle --[[@as Relm.Internal.VNode]], payload)
 end
 
