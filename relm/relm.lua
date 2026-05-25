@@ -1722,9 +1722,9 @@ function lib.root_create(container_element, name, element_type, props)
 	if not name or (name == "") then
 		error("relm.root_create: root must be given a nonempty name.")
 	end
-	if container_element[name] then
-		error("relm.root_create: name of root must be unique within container")
-	end
+
+	-- Don't allow duplicate root names within the same container.
+	if container_element[name] then return nil end
 
 	local player_index = container_element.player_index
 	local relm_state = storage._relm
