@@ -314,7 +314,7 @@ function event.dynamic_subtick_trigger(handler_name, event_name, handler_data)
 	obj.destroy()
 end
 
-event.bind("on_object_destroyed", function(ev)
+event.bind(defines.events.on_object_destroyed, function(ev)
 	local rn = ev.registration_number
 	local binding = (storage._event_subtick or EMPTY)[rn]
 	if not binding then return end
