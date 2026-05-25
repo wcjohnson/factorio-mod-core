@@ -1,3 +1,5 @@
+---@diagnostic disable: different-requires
+
 local relm = require("lib.core.relm.relm")
 local relm_util = require("lib.core.relm.util")
 
@@ -765,6 +767,7 @@ lib.TabbedPane = relm.define_element({
 		return false
 	end,
 	state = function(props)
+		---@diagnostic disable-next-line: return-type-mismatch
 		return { selected_tab = props.initial_selected_tab or 1 }
 	end,
 })

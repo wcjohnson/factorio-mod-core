@@ -5,6 +5,10 @@ local tlib = require("lib.core.table")
 
 local lib = {}
 
+---@class SmartOpenDummyTags
+---@field opened [string,string][] List of {element name, on_object_destroyed registration number} pairs for currently opened GUIs
+---@field reg_nums table<string, boolean> Set of on_object_destroyed registration numbers for currently opened GUIs, for quick lookup
+
 ---@param player LuaPlayer
 local function dummy_create(player)
 	local dummy = player.gui.screen.add({
@@ -50,7 +54,7 @@ end
 local function dummy_remove_elt(player, reg_num)
 	local dummy = dummy_get(player)
 	if not dummy or not dummy.valid then return end
-	local tags = dummy.tags
+	local tags = dummy.tags --[[@as SmartOpenDummyTags]]
 	reg_num = tostring(reg_num)
 	if not tags.reg_nums[reg_num] then return end
 	tags.reg_nums[reg_num] = nil
@@ -71,7 +75,7 @@ end
 local function dummy_close_all(player)
 	local dummy = dummy_get(player)
 	if not dummy or not dummy.valid then return end
-	local tags = dummy.tags
+	local tags = dummy.tags --[[@as SmartOpenDummyTags]]
 	for _, entry in pairs(tags.opened) do
 		local elt = player.gui.screen[entry[1]]
 		if elt and elt.valid then elt.destroy() end
