@@ -1648,8 +1648,9 @@ end
 
 ---Initialize Relm with the Core Events system. Must pass in the top level
 ---`event` library.
+---@param event Core.Lib.Event
 function lib.bootstrap_with_core_events(event)
-	__EVENT_SINK__ = event
+	__EVENT_SINK__ = event --[[@as Relm.EventSink]]
 
 	-- Create storage on startup
 	event.bind("on_startup", function()
