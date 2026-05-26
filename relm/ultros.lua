@@ -270,6 +270,12 @@ end
 lib.Titlebar = relm.define_element({
 	name = "Titlebar",
 	render = function(props)
+		local has_close_button = props.closable or props.on_close
+		local close_button_props = nil
+		if props.on_close then
+			close_button_props = { on_click = props.on_close }
+		end
+
 		return Pr({ type = "flow", direction = "horizontal" }, {
 			Pr({
 				type = "label",
@@ -283,7 +289,7 @@ lib.Titlebar = relm.define_element({
 				style = "relm_titlebar_drag_handle",
 			}),
 			lib.CallIf(props.decoration, props.decoration, props),
-			props.closable and lib.CloseButton(),
+			has_close_button and lib.CloseButton(close_button_props),
 		})
 	end,
 })
@@ -310,6 +316,7 @@ lib.WindowFrame = relm.define_element({
 			lib.Titlebar({
 				draggable = true,
 				closable = closable,
+				on_close = props.on_close,
 				caption = props.caption,
 				drag_handle_ref = set_drag_handle,
 				decoration = props.decoration,
