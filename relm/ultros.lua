@@ -280,7 +280,7 @@ lib.Titlebar = relm.define_element({
 			props.draggable and Pr({
 				ref = props.drag_handle_ref,
 				type = "empty-widget",
-				style = "flib_titlebar_drag_handle",
+				style = "relm_titlebar_drag_handle",
 			}),
 			lib.CallIf(props.decoration, props.decoration, props),
 			props.closable and lib.CloseButton(),
@@ -865,7 +865,7 @@ local function paint_signal_counts(elem, primitive_props)
 				type = "choose-elem-button",
 				elem_type = "signal",
 				enabled = false,
-				style = "flib_slot_button_default",
+				style = "relm_slot_button_default",
 			})
 			button.elem_value = signal
 			button.add({
@@ -899,5 +899,20 @@ lib.SignalCountsTable = relm.define_element({
 		})
 	end,
 })
+
+--------------------------------------------------------------------------------
+-- WINDOW DECORATIONS
+--------------------------------------------------------------------------------
+
+lib.PinButton = relm.define("ultros.PinButton", function(props)
+	local is_pinned = props.pinned
+	local set_pinned = props.set_pinned or noop
+	return lib.SpriteButton({
+		style = "frame_action_button",
+		sprite = "relm_pin_white",
+		on_click = function() set_pinned(not is_pinned) end,
+		toggled = is_pinned,
+	})
+end)
 
 return lib
