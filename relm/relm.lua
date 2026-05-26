@@ -267,7 +267,7 @@ local registry = {}
 ---@field public id uint The id of the root.
 ---@field public data_version int The data version this root was created with. Used to detect when a root was created with an incompatible version of Relm and should be destroyed.
 ---@field public container_element LuaGuiElement The element the root was rendered into.
----@field public name_in_container string `root_element` name within the `container_element` children set.
+---@field public name_in_container? string `root_element` name within the `container_element` children set.
 ---@field public root_element LuaGuiElement The rendered root element.
 ---@field public reg_num uint64 The registration number returned by `script.register_on_object_destroyed` for the root element, used to detect when the root element is destroyed.
 ---@field public player_index int The player index of the owning player of the root element.
@@ -292,11 +292,13 @@ local registry = {}
 ---@field public root_id Relm.RootId Contains the root id of the vtree containing this node.
 
 ---@class (exact) Relm.Internal.PaintContext
----@field index uint Current real child being examined
----@field elem LuaGuiElement Gui element we're rendering into
+---@field index uint? Current real child being examined. `nil` if rendering a root.
+---@field elem LuaGuiElement Gui element we're rendering into (PARENT)
+---@field rendered_elem? LuaGuiElement If the target child element was already rendered and we have a reference to it, that reference.
 ---@field root_id Relm.RootId
----@field root_name string? Set to the name of the root in its container if we are rendering a root.
 ---@field structure_changed boolean? `true` if something was create or destroyed in this context during the paint op.
+---@field ref? fun(elem: LuaGuiElement|nil) Ref callback from vpaint to notify of the created element in this context.
+---@field assign_name? string If given, the name to assign to the created element in this context.
 
 ---Map from vnodes to last rendered props
 ---MP SAFETY: repopulated `on_load` by full hydration
@@ -312,6 +314,11 @@ local vhooks_transient = setmetatable({}, { __mode = "k" })
 ---MP SAFETY: repopulated `on_load` by full hydration
 ---@type table<Relm.Internal.VNode, table<uint, fun(state: table?, transient: any?)>>
 local vhooks_cleanup = setmetatable({}, { __mode = "k" })
+
+---Map from vnodes to transient data
+---MP SAFETY: repopulated `on_load` by full hydration
+---@type table<Relm.Internal.VNode, any>
+local vnode_transient = setmetatable({}, { __mode = "k" })
 
 local function noop() end
 
@@ -552,6 +559,7 @@ local function vprune(vnode)
 	-- reused at the same place in the vtree.
 	vprops[vnode] = nil
 	vhooks_transient[vnode] = nil
+	vnode_transient[vnode] = nil
 	vnode.type = nil
 	vnode.elem = nil
 	vnode.index = nil
@@ -789,10 +797,10 @@ end
 local function vpaint_context_destroy(context)
 	local elem = context.elem
 	if elem and elem.valid then
-		if context.root_name then
-			local child = elem[context.root_name]
-			if child then return vpaint_element_destroy(context, child) end
-		else
+		if context.rendered_elem then
+			vpaint_element_destroy(context, context.rendered_elem)
+			if context.ref then context.ref(nil) end
+		elseif context.index then
 			local child = elem.children[context.index]
 			if child then return vpaint_element_destroy(context, child) end
 		end
@@ -804,20 +812,6 @@ end
 local function vpaint_context_create(context, props)
 	local elem = context.elem
 	if elem and elem.valid then
-		if context.root_name and context.index > 1 then
-			-- TODO: should we crash factorio here?
-			if strace then
-				strace(
-					ERROR,
-					"relm",
-					"paint",
-					"message",
-					"illegal attempt to render multiple primitives at root level"
-				)
-			end
-			return nil
-		end
-
 		-- Assemble props valid for `add`ing.
 		local addable_props = {}
 		for k, v in pairs(props) do
@@ -837,8 +831,8 @@ local function vpaint_context_create(context, props)
 
 		-- Create
 		local new_elem
-		if context.root_name then
-			addable_props.name = context.root_name
+		if context.assign_name then
+			addable_props.name = context.assign_name
 		else
 			addable_props.index = context.index
 		end
@@ -850,8 +844,10 @@ local function vpaint_context_create(context, props)
 		tags["__relm_root"] = context.root_id
 		new_elem.tags = tags
 
+		if context.ref then context.ref(new_elem) end
+
 		context.structure_changed = true
-		context.index = context.index + 1
+		if context.index then context.index = context.index + 1 end
 		return new_elem
 	end
 end
@@ -861,9 +857,9 @@ end
 ---@param vnode Relm.Internal.VNode
 local function vpaint_context_diff(context, props, vnode)
 	local elem
-	if context.root_name then
-		elem = context.elem[context.root_name]
-	else
+	if context.rendered_elem then
+		elem = context.rendered_elem
+	elseif context.index then
 		elem = context.elem.children[context.index]
 	end
 	if not elem then
@@ -903,7 +899,7 @@ local function vpaint_context_diff(context, props, vnode)
 	end
 
 	-- No diff needed, increment context index
-	context.index = context.index + 1
+	if context.index then context.index = context.index + 1 end
 	return elem, false
 end
 
@@ -1212,8 +1208,11 @@ local function vrepaint(vnode)
 			vpaint_stats(vnode, {
 				elem = root.container_element,
 				root_id = root.id,
-				root_name = root.name_in_container,
-				index = 1,
+				rendered_elem = root.root_element,
+				ref = function(elt)
+					if elt then root.root_element = elt end
+				end,
+				assign_name = root.name_in_container,
 			})
 		elseif elem then
 			vpaint_stats(vnode, {
@@ -1502,6 +1501,15 @@ local function get_hook_transient(node, hook_id)
 	if hooks then return hooks[hook_id] end
 end
 
+---@param node Relm.Internal.VNode
+---@param transient_value any
+local function set_node_transient(node, transient_value)
+	vnode_transient[node] = transient_value
+end
+
+---@param node Relm.Internal.VNode
+local function get_node_transient(node) return vnode_transient[node] end
+
 --------------------------------------------------------------------------------
 -- QUERIES
 --------------------------------------------------------------------------------
@@ -1701,7 +1709,7 @@ end
 ---`root_id` prop reflecting the ID of the newly created Relm root.
 ---
 ---@param container_element LuaGuiElement The render result will be `.add`ed to this element. e.g. `player.gui.screen`. MUST NOT be within another Relm tree.
----@param name string The rendered root will be given this `name` within the `container_element` children. Name is mandatory for re-rendering the root when needed.
+---@param name string? The rendered root will be given this `name` within the `container_element` children.
 ---@param element_type string Type of Relm element to render at the root. Must have previously been defined with `relm.define_element`.
 ---@param props Relm.Props Props to pass to the newly created root. Unlike other props in Relm, these MUST be serializable (no functions!) and may not contain `children`.
 ---@return Relm.RootId? root_id ID of the newly created root.
@@ -1720,12 +1728,9 @@ function lib.root_create(container_element, name, element_type, props)
 	if props.children then
 		error("relm.root_create: Root props may not contain children.")
 	end
-	if not name or (name == "") then
-		error("relm.root_create: root must be given a nonempty name.")
-	end
 
 	-- Don't allow duplicate root names within the same container.
-	if container_element[name] then return nil end
+	if name and container_element[name] then return nil end
 
 	local player_index = container_element.player_index
 	local relm_state = storage._relm
@@ -1736,7 +1741,7 @@ function lib.root_create(container_element, name, element_type, props)
 
 	-- Diagnostics disabled below because of partial-structure assembly.
 	---@diagnostic disable-next-line: missing-fields
-	relm_state.roots[id] = {
+	local root = {
 		id = id,
 		data_version = RELM_DATA_VERSION,
 		player_index = player_index,
@@ -1750,6 +1755,7 @@ function lib.root_create(container_element, name, element_type, props)
 		root_props = props,
 		index_to_vnode = {},
 	}
+	relm_state.roots[id] = root
 	local vtree_root = relm_state.roots[id].vtree_root
 
 	-- Render the entire tree from the root
@@ -1757,18 +1763,16 @@ function lib.root_create(container_element, name, element_type, props)
 	vapply(vtree_root, { type = element_type, props = props })
 	vpaint_stats(vtree_root, {
 		elem = container_element,
-		index = 1,
-		root_name = name,
 		root_id = id,
+		ref = function(elt) root.root_element = elt end,
+		assign_name = name,
 	})
 	exit_side_effect_barrier()
 	run_post_render_effects()
 
 	-- Find the Factorio element that was painted
-	local created_elt = find_first_elem(vtree_root)
-	if created_elt then
-		relm_state.roots[id].root_element = created_elt
-	else
+	local created_elt = root.root_element
+	if not created_elt then
 		if strace then
 			strace(
 				ERROR,
@@ -1848,6 +1852,14 @@ function lib.get_root_id(element)
 	if element and element.valid then
 		return element.tags.__relm_root --[[@as Relm.RootId?]]
 	end
+end
+
+---Given a Relm root ID, get the root `LuaGuiElement` if it exists.
+---@param id Relm.RootId?
+---@return LuaGuiElement? root_element
+function lib.get_root_element(id)
+	local root = storage._relm.roots[id or ""] --[[@as Relm.Internal.Root? ]]
+	if root then return root.root_element end
 end
 
 ---Iterate all Relm roots. This is an "escape valve" for debugging and
@@ -1950,10 +1962,10 @@ end
 ---A primitive element whose props are passed directly to Factorio GUI
 ---for rendering.
 ---@type fun(props: Relm.PrimitiveDefinition, children?: Relm.Node[]): Relm.Node
-lib.Primitive = lib.define_element({
-	name = "Primitive",
-	render = function(props) return props.children end,
-})
+lib.Primitive = lib.define(
+	"Primitive",
+	function(props) return props.children end
+)
 
 --------------------------------------------------------------------------------
 -- API: SIDE EFFECTS
@@ -2156,6 +2168,22 @@ function lib.invoke_closure(handle, closure_ref, ...)
 	if not hooks then return end
 	local closure = hooks[closure_ref]
 	if type(closure) == "function" then return closure(...) end
+end
+
+---Hook that associates transient data with the currently rendering node.
+---@param data any Arbitrary transient data.
+function lib.use_transient(data)
+	if not hook_node then
+		error("use_transient: Hook must be called during render")
+	end
+	set_node_transient(hook_node, data)
+end
+
+---Get transient data associated with a node.
+---@param handle Relm.Handle The node to get transient data from.
+---@return any data The transient data associated with the node, or `nil` if no transient data is associated.
+function lib.get_transient(handle)
+	return get_node_transient(handle --[[@as Relm.Internal.VNode]])
 end
 
 --------------------------------------------------------------------------------
