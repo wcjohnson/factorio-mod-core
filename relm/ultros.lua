@@ -951,6 +951,11 @@ end)
 
 local GUI_TYPE_CUSTOM = defines.gui_type.custom
 
+function lib.use_pinnable()
+	local pinned, _set_pinned = relm.use_state(false)
+	return pinned, _set_pinned
+end
+
 ---Automatically set and unset `player.opened` for this root, while also
 ---enabling "pinning" functionality.
 ---@param player_index PlayerIndex
@@ -988,14 +993,20 @@ end
 ---@param player_index PlayerIndex
 ---@param close_me fun()
 ---@param is_pinned boolean?
-function lib.use_close_on_gui_closed(player_index, close_me, is_pinned)
+---@param type_filter defines.gui_type|nil If set, only close the window if the closed GUI is of this type. By default, only close on custom GUIs.
+function lib.use_close_on_gui_closed(
+	player_index,
+	close_me,
+	is_pinned,
+	type_filter
+)
 	relm_util.use_event_handler(
 		defines.events.on_gui_closed,
 		function(me, _, event)
 			---@cast event EventData.on_gui_closed
 			if is_pinned then return end
 			if
-				event.gui_type == GUI_TYPE_CUSTOM
+				(event.gui_type == (type_filter or GUI_TYPE_CUSTOM))
 				and event.player_index == player_index
 			then
 				close_me()
