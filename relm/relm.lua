@@ -1738,6 +1738,7 @@ function lib.root_create(container_element, name, element_type, props)
 	local id = storage._relm.root_counter + 1
 	storage._relm.root_counter = id
 	props.root_id = id
+	props.player_index = player_index
 
 	-- Diagnostics disabled below because of partial-structure assembly.
 	---@diagnostic disable-next-line: missing-fields
@@ -1806,14 +1807,14 @@ end
 ---Destoys a root and all associated child elements.
 ---@param id Relm.RootId? The ID of the root.
 ---@param silent boolean? If `true`, the root will be destroyed without raising the `relm.root_destroyed` event.
----@return boolean success `true` if the root was successfully destroyed, `false` if the root was not found or an error occurred.
+---@return boolean success `true` if the root was successfully destroyed, `false` if the root was not destroyed (did not exist or was already destroyed)
 function lib.root_destroy(id, silent)
 	if not id then return false end
 	local relm_state = storage._relm
 	if not relm_state then return false end
 	local root = relm_state.roots[id]
 	if not root then return false end
-	if dead_roots[root] then return true end
+	if dead_roots[root] then return false end
 	dead_roots[root] = true
 	if not silent then
 		local ev = {
