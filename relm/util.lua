@@ -91,8 +91,9 @@ local function events_unbinder(ids)
 	end
 end
 
+---Call a function whenever an event is dispatched via Core Events.
 ---@param events Core.EventName|Core.EventName[]
----@param handler fun(me: Relm.Handle, event: Core.EventName, ...: any)
+---@param handler fun(me: Relm.Handle, event: Core.EventName, ...: any) Handler function. Receives a handle to the component, the Core Events event name, as well as any arguments dispatched with the event.
 function lib.use_event_handler(events, handler)
 	local _, closure = relm.use_closure(handler)
 	relm.use_effect(events, function(me, _events)

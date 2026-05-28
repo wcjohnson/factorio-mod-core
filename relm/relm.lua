@@ -1816,7 +1816,11 @@ function lib.root_destroy(id, silent)
 	if dead_roots[root] then return true end
 	dead_roots[root] = true
 	if not silent then
-		local ev = { root_id = id, player_index = root.player_index }
+		local ev = {
+			root_id = id,
+			player_index = root.player_index,
+			last_props = root.root_props,
+		}
 		if root.root_element and root.root_element.valid then
 			ev.element = root.root_element
 		end
@@ -1859,6 +1863,16 @@ end
 ---@return LuaGuiElement? root_element
 function lib.get_root_element(id)
 	local root = storage._relm.roots[id or ""] --[[@as Relm.Internal.Root? ]]
+	if root then return root.root_element end
+end
+
+---Given a handle to a Relm element, get the `LuaGuiElement` associated with
+---its root.
+---@param handle Relm.Handle
+---@return LuaGuiElement? root_element
+function lib.get_root_element_from_handle(handle)
+	local vnode = handle --[[@as Relm.Internal.VNode]]
+	local root = storage._relm.roots[vnode.root_id or -1]
 	if root then return root.root_element end
 end
 
