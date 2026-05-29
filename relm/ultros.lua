@@ -473,6 +473,27 @@ lib.RadioButton = lib.customize_primitive({
 	type = "radiobutton",
 }, checkbox_customizer)
 
+lib.WellHeader = relm.define("WellHeader", function(props)
+	local caption_element = props.caption_element
+	if props.caption then
+		caption_element = Pr({
+			type = "label",
+			style = "subheader_caption_label",
+			caption = props.caption,
+		})
+	end
+	return Pr({
+		type = "frame",
+		style = "subheader_frame",
+		horizontally_stretchable = true,
+		bottom_margin = 4,
+	}, {
+		caption_element,
+		lib.If(props.decorate, HF({ horizontally_stretchable = true }, {})),
+		lib.CallIf(props.decorate, props.decorate, props),
+	})
+end)
+
 lib.WellSection = relm.define("WellSection", function(props)
 	local collapsed = not not props.collapsed
 	local visible = true
