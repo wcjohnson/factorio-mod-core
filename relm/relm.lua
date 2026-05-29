@@ -1,4 +1,4 @@
-local event = require("lib.core.event")
+---@diagnostic disable: inject-field
 
 local tremove = _G.table.remove
 local type = _G.type
@@ -6,9 +6,11 @@ local min = _G.math.min
 local error = _G.error
 local strfind = _G.string.find
 local pairs = _G.pairs
+local setmetatable = _G.setmetatable
 
 ---@class Relm.Lib
 local lib = {}
+_G.__RELM__ = lib
 
 local EMPTY = setmetatable({}, { __newindex = function() end })
 
@@ -23,8 +25,7 @@ local RELM_DATA_VERSION = 1
 
 -- h/t `flib.gui` for the below code which serves much the same function here
 
---- A GUI element definition.
---- @class Relm.PrimitiveDefinition: LuaGuiElement.add_param.button|LuaGuiElement.add_param.camera|LuaGuiElement.add_param.checkbox|LuaGuiElement.add_param.choose_elem_button|LuaGuiElement.add_param.drop_down|LuaGuiElement.add_param.flow|LuaGuiElement.add_param.frame|LuaGuiElement.add_param.line|LuaGuiElement.add_param.list_box|LuaGuiElement.add_param.minimap|LuaGuiElement.add_param.progressbar|LuaGuiElement.add_param.radiobutton|LuaGuiElement.add_param.scroll_pane|LuaGuiElement.add_param.slider|LuaGuiElement.add_param.sprite|LuaGuiElement.add_param.sprite_button|LuaGuiElement.add_param.switch|LuaGuiElement.add_param.tab|LuaGuiElement.add_param.table|LuaGuiElement.add_param.text_box|LuaGuiElement.add_param.textfield
+--- @alias Relm.PrimitiveDefinition LuaGuiElement.add_param
 
 --- Aggregate type of all possible GUI events.
 --- @alias Relm.GuiEventData EventData.on_gui_checked_state_changed|EventData.on_gui_click|EventData.on_gui_closed|EventData.on_gui_confirmed|EventData.on_gui_elem_changed|EventData.on_gui_location_changed|EventData.on_gui_opened|EventData.on_gui_selected_tab_changed|EventData.on_gui_selection_state_changed|EventData.on_gui_switch_state_changed|EventData.on_gui_text_changed|EventData.on_gui_value_changed
@@ -182,6 +183,12 @@ local STYLE_KEYS = {
 -- API of Relm and should not be changed.
 --------------------------------------------------------------------------------
 
+---@class Relm.EventSink
+---@field public raise fun(event_name: string, ...: any): nil
+
+---@type Relm.EventSink
+local __EVENT_SINK__ = nil
+
 ---The primary output of `render` functions, representing nodes in the virtual
 ---tree.
 ---@class (exact) Relm.Node
@@ -260,7 +267,7 @@ local registry = {}
 ---@field public id uint The id of the root.
 ---@field public data_version int The data version this root was created with. Used to detect when a root was created with an incompatible version of Relm and should be destroyed.
 ---@field public container_element LuaGuiElement The element the root was rendered into.
----@field public name_in_container string `root_element` name within the `container_element` children set.
+---@field public name_in_container? string `root_element` name within the `container_element` children set.
 ---@field public root_element LuaGuiElement The rendered root element.
 ---@field public reg_num uint64 The registration number returned by `script.register_on_object_destroyed` for the root element, used to detect when the root element is destroyed.
 ---@field public player_index int The player index of the owning player of the root element.
@@ -285,11 +292,13 @@ local registry = {}
 ---@field public root_id Relm.RootId Contains the root id of the vtree containing this node.
 
 ---@class (exact) Relm.Internal.PaintContext
----@field index uint Current real child being examined
----@field elem LuaGuiElement Gui element we're rendering into
+---@field index uint? Current real child being examined. `nil` if rendering a root.
+---@field elem LuaGuiElement Gui element we're rendering into (PARENT)
+---@field rendered_elem? LuaGuiElement If the target child element was already rendered and we have a reference to it, that reference.
 ---@field root_id Relm.RootId
----@field root_name string? Set to the name of the root in its container if we are rendering a root.
 ---@field structure_changed boolean? `true` if something was create or destroyed in this context during the paint op.
+---@field ref? fun(elem: LuaGuiElement|nil) Ref callback from vpaint to notify of the created element in this context.
+---@field assign_name? string If given, the name to assign to the created element in this context.
 
 ---Map from vnodes to last rendered props
 ---MP SAFETY: repopulated `on_load` by full hydration
@@ -305,6 +314,11 @@ local vhooks_transient = setmetatable({}, { __mode = "k" })
 ---MP SAFETY: repopulated `on_load` by full hydration
 ---@type table<Relm.Internal.VNode, table<uint, fun(state: table?, transient: any?)>>
 local vhooks_cleanup = setmetatable({}, { __mode = "k" })
+
+---Map from vnodes to transient data
+---MP SAFETY: repopulated `on_load` by full hydration
+---@type table<Relm.Internal.VNode, any>
+local vnode_transient = setmetatable({}, { __mode = "k" })
 
 local function noop() end
 
@@ -545,6 +559,7 @@ local function vprune(vnode)
 	-- reused at the same place in the vtree.
 	vprops[vnode] = nil
 	vhooks_transient[vnode] = nil
+	vnode_transient[vnode] = nil
 	vnode.type = nil
 	vnode.elem = nil
 	vnode.index = nil
@@ -782,10 +797,10 @@ end
 local function vpaint_context_destroy(context)
 	local elem = context.elem
 	if elem and elem.valid then
-		if context.root_name then
-			local child = elem[context.root_name]
-			if child then return vpaint_element_destroy(context, child) end
-		else
+		if context.rendered_elem then
+			vpaint_element_destroy(context, context.rendered_elem)
+			if context.ref then context.ref(nil) end
+		elseif context.index then
 			local child = elem.children[context.index]
 			if child then return vpaint_element_destroy(context, child) end
 		end
@@ -797,20 +812,6 @@ end
 local function vpaint_context_create(context, props)
 	local elem = context.elem
 	if elem and elem.valid then
-		if context.root_name and context.index > 1 then
-			-- TODO: should we crash factorio here?
-			if strace then
-				strace(
-					ERROR,
-					"relm",
-					"paint",
-					"message",
-					"illegal attempt to render multiple primitives at root level"
-				)
-			end
-			return nil
-		end
-
 		-- Assemble props valid for `add`ing.
 		local addable_props = {}
 		for k, v in pairs(props) do
@@ -830,8 +831,8 @@ local function vpaint_context_create(context, props)
 
 		-- Create
 		local new_elem
-		if context.root_name then
-			addable_props.name = context.root_name
+		if context.assign_name then
+			addable_props.name = context.assign_name
 		else
 			addable_props.index = context.index
 		end
@@ -843,8 +844,10 @@ local function vpaint_context_create(context, props)
 		tags["__relm_root"] = context.root_id
 		new_elem.tags = tags
 
+		if context.ref then context.ref(new_elem) end
+
 		context.structure_changed = true
-		context.index = context.index + 1
+		if context.index then context.index = context.index + 1 end
 		return new_elem
 	end
 end
@@ -854,9 +857,9 @@ end
 ---@param vnode Relm.Internal.VNode
 local function vpaint_context_diff(context, props, vnode)
 	local elem
-	if context.root_name then
-		elem = context.elem[context.root_name]
-	else
+	if context.rendered_elem then
+		elem = context.rendered_elem
+	elseif context.index then
 		elem = context.elem.children[context.index]
 	end
 	if not elem then
@@ -896,7 +899,7 @@ local function vpaint_context_diff(context, props, vnode)
 	end
 
 	-- No diff needed, increment context index
-	context.index = context.index + 1
+	if context.index then context.index = context.index + 1 end
 	return elem, false
 end
 
@@ -1205,8 +1208,11 @@ local function vrepaint(vnode)
 			vpaint_stats(vnode, {
 				elem = root.container_element,
 				root_id = root.id,
-				root_name = root.name_in_container,
-				index = 1,
+				rendered_elem = root.root_element,
+				ref = function(elt)
+					if elt then root.root_element = elt end
+				end,
+				assign_name = root.name_in_container,
 			})
 		elseif elem then
 			vpaint_stats(vnode, {
@@ -1255,10 +1261,22 @@ local function run_post_render_effects()
 	end
 end
 
+local INVISIBLE_LINE = {
+	color = { 0, 0, 0, 0 },
+	width = 0,
+	from = { 0, 0 },
+	to = { 0, 0 },
+	surface = 1,
+}
+
 local function defer_render()
 	if pending_render then return end
 	pending_render = true
-	event.dynamic_subtick_trigger("relm.deferred_render", "render")
+	local obj = rendering.draw_line(INVISIBLE_LINE)
+	local rn = script.register_on_object_destroyed(obj)
+	local relm_state = storage._relm
+	relm_state.deferred_rn = rn
+	obj.destroy()
 end
 
 ---@param dirty_nodes table<Relm.Internal.VNode, true>
@@ -1334,8 +1352,6 @@ local function deferred_render()
 	pending_render = false
 	run_post_render_effects()
 end
-
-event.register_dynamic_handler("relm.deferred_render", deferred_render)
 
 ---@param vnode Relm.Internal.VNode
 ---@param state Relm.State?
@@ -1485,6 +1501,15 @@ local function get_hook_transient(node, hook_id)
 	if hooks then return hooks[hook_id] end
 end
 
+---@param node Relm.Internal.VNode
+---@param transient_value any
+local function set_node_transient(node, transient_value)
+	vnode_transient[node] = transient_value
+end
+
+---@param node Relm.Internal.VNode
+local function get_node_transient(node) return vnode_transient[node] end
+
 --------------------------------------------------------------------------------
 -- QUERIES
 --------------------------------------------------------------------------------
@@ -1529,6 +1554,7 @@ end
 -- FACTORIO EVENT BINDING
 --------------------------------------------------------------------------------
 
+---Handle a Factorio gui event.
 ---@param ev Relm.GuiEventData
 local function dispatch(ev)
 	local element = ev.element
@@ -1558,14 +1584,25 @@ local function dispatch(ev)
 		end
 	end
 end
+lib.handle_on_gui_event = dispatch
 
--- Connect Relm to all Factorio GUI events.
-for id in pairs(gui_events) do
-	event.bind(id, dispatch)
+---Utility function to bind all Factorio GUI events to Relm dispatch. Note:
+---this will conflict with your own manual GUI event bindings if you
+---have any.
+function lib.bind_all_gui_events()
+	for id in pairs(gui_events) do
+		script.on_event(id, dispatch)
+	end
 end
 
--- Restore transient component states on load.
-event.bind("on_load", function()
+---Set Relm's event sink. Relm calls this function in the event it needs
+---to propagate a Relm event to your mod code.
+---@param sink Relm.EventSink
+function lib.set_event_sink(sink) __EVENT_SINK__ = sink end
+
+---Restore transient component states.
+---This MUST be called by consuming mods during `on_load`
+function lib.handle_on_load()
 	local relm_storage = storage._relm
 	if not relm_storage then return end
 	local roots = relm_storage.roots
@@ -1575,7 +1612,7 @@ event.bind("on_load", function()
 			{ type = root.root_element_type, props = root.root_props }
 		)
 	end
-end)
+end
 
 ---Initialize Relm's storage if it doesn't already exist.
 function lib.init_storage()
@@ -1585,21 +1622,69 @@ function lib.init_storage()
 	end
 end
 
--- Create storage on startup
-event.bind("on_startup", function()
-	-- Lint diagnostic here is ok. We can't disable it because of luals bug.
-	storage._relm = { roots = {}, root_counter = 0, reg_num_map = {} } --[[@as Relm.Internal.Storage]]
-end)
+---Consuming mods MUST call this in `on_init` unless using the Core Events
+---bindings.
+lib.handle_on_init = function() return lib.init_storage() end
 
--- Destroy all roots on shutdown.
-event.bind("on_shutdown", function()
-	local relm_storage = storage._relm
-	if not relm_storage then return end
-	local roots = relm_storage.roots
-	for id, _ in pairs(roots) do
-		lib.root_destroy(id)
+local GUI_ELEMENT_TARGET_TYPE = defines.target_type.gui_element
+local RENDER_OBJECT_TARGET_TYPE = defines.target_type.render_object
+
+---Consuming mods MUST call this in `on_object_destroyed`.
+---@param ev EventData.on_object_destroyed
+function lib.handle_on_object_destroyed(ev)
+	local ev_type = ev.type
+	if ev_type == RENDER_OBJECT_TARGET_TYPE then
+		local rn = ev.registration_number
+		local relm_state = storage._relm
+		if not relm_state then return end
+		if relm_state.deferred_rn == rn then
+			relm_state.deferred_rn = nil
+			deferred_render()
+		end
+	elseif ev_type == GUI_ELEMENT_TARGET_TYPE then
+		local rn = ev.registration_number
+		local relm_state = storage._relm
+		if not relm_state then return end
+		local reg_num_map = relm_state.reg_num_map
+		-- Migration may cause reg_num_map to be missing.
+		if not reg_num_map then return end
+		local id = reg_num_map[rn]
+		reg_num_map[rn] = nil
+		if id then lib.root_destroy(id) end
 	end
-end)
+end
+
+---Initialize Relm with the Core Events system. Must pass in the top level
+---`event` library.
+---@param event Core.Lib.Event
+function lib.bootstrap_with_core_events(event)
+	__EVENT_SINK__ = event --[[@as Relm.EventSink]]
+
+	-- Create storage on startup
+	event.bind("on_startup", function()
+		-- Lint diagnostic here is ok. We can't disable it because of luals bug.
+		storage._relm = { roots = {}, root_counter = 0, reg_num_map = {} } --[[@as Relm.Internal.Storage]]
+	end)
+
+	-- Destroy all roots on shutdown.
+	event.bind("on_shutdown", function()
+		local relm_storage = storage._relm
+		if not relm_storage then return end
+		local roots = relm_storage.roots
+		for id, _ in pairs(roots) do
+			lib.root_destroy(id)
+		end
+	end)
+
+	event.bind("on_load", lib.handle_on_load)
+
+	event.bind(defines.events.on_object_destroyed, lib.handle_on_object_destroyed)
+
+	-- Connect Relm to all Factorio GUI events.
+	for id in pairs(gui_events) do
+		event.bind(id, dispatch)
+	end
+end
 
 --------------------------------------------------------------------------------
 -- API: FACTORIO GUI EVENTS
@@ -1624,7 +1709,7 @@ end
 ---`root_id` prop reflecting the ID of the newly created Relm root.
 ---
 ---@param container_element LuaGuiElement The render result will be `.add`ed to this element. e.g. `player.gui.screen`. MUST NOT be within another Relm tree.
----@param name string The rendered root will be given this `name` within the `container_element` children. Name is mandatory for re-rendering the root when needed.
+---@param name string? The rendered root will be given this `name` within the `container_element` children.
 ---@param element_type string Type of Relm element to render at the root. Must have previously been defined with `relm.define_element`.
 ---@param props Relm.Props Props to pass to the newly created root. Unlike other props in Relm, these MUST be serializable (no functions!) and may not contain `children`.
 ---@return Relm.RootId? root_id ID of the newly created root.
@@ -1643,12 +1728,9 @@ function lib.root_create(container_element, name, element_type, props)
 	if props.children then
 		error("relm.root_create: Root props may not contain children.")
 	end
-	if not name or (name == "") then
-		error("relm.root_create: root must be given a nonempty name.")
-	end
 
 	-- Don't allow duplicate root names within the same container.
-	if container_element[name] then return nil end
+	if name and container_element[name] then return nil end
 
 	local player_index = container_element.player_index
 	local relm_state = storage._relm
@@ -1656,10 +1738,11 @@ function lib.root_create(container_element, name, element_type, props)
 	local id = storage._relm.root_counter + 1
 	storage._relm.root_counter = id
 	props.root_id = id
+	props.player_index = player_index
 
 	-- Diagnostics disabled below because of partial-structure assembly.
 	---@diagnostic disable-next-line: missing-fields
-	relm_state.roots[id] = {
+	local root = {
 		id = id,
 		data_version = RELM_DATA_VERSION,
 		player_index = player_index,
@@ -1673,6 +1756,7 @@ function lib.root_create(container_element, name, element_type, props)
 		root_props = props,
 		index_to_vnode = {},
 	}
+	relm_state.roots[id] = root
 	local vtree_root = relm_state.roots[id].vtree_root
 
 	-- Render the entire tree from the root
@@ -1680,18 +1764,16 @@ function lib.root_create(container_element, name, element_type, props)
 	vapply(vtree_root, { type = element_type, props = props })
 	vpaint_stats(vtree_root, {
 		elem = container_element,
-		index = 1,
-		root_name = name,
 		root_id = id,
+		ref = function(elt) root.root_element = elt end,
+		assign_name = name,
 	})
 	exit_side_effect_barrier()
 	run_post_render_effects()
 
 	-- Find the Factorio element that was painted
-	local created_elt = find_first_elem(vtree_root)
-	if created_elt then
-		relm_state.roots[id].root_element = created_elt
-	else
+	local created_elt = root.root_element
+	if not created_elt then
 		if strace then
 			strace(
 				ERROR,
@@ -1711,11 +1793,13 @@ function lib.root_create(container_element, name, element_type, props)
 	if not relm_state.reg_num_map then relm_state.reg_num_map = {} end
 	relm_state.reg_num_map[reg_num] = id
 
-	event.raise("relm.root_created", {
-		root_id = id,
-		element = created_elt,
-		player_index = player_index,
-	})
+	if __EVENT_SINK__ then
+		__EVENT_SINK__.raise("relm.root_created", {
+			root_id = id,
+			element = created_elt,
+			player_index = player_index,
+		})
+	end
 
 	return id, created_elt
 end
@@ -1723,38 +1807,29 @@ end
 ---Destoys a root and all associated child elements.
 ---@param id Relm.RootId? The ID of the root.
 ---@param silent boolean? If `true`, the root will be destroyed without raising the `relm.root_destroyed` event.
----@return boolean success `true` if the root was successfully destroyed, `false` if the root was not found or an error occurred.
+---@return boolean success `true` if the root was successfully destroyed, `false` if the root was not destroyed (did not exist or was already destroyed)
 function lib.root_destroy(id, silent)
 	if not id then return false end
 	local relm_state = storage._relm
 	if not relm_state then return false end
 	local root = relm_state.roots[id]
 	if not root then return false end
-	if dead_roots[root] then return true end
+	if dead_roots[root] then return false end
 	dead_roots[root] = true
 	if not silent then
-		local ev = { root_id = id, player_index = root.player_index }
+		local ev = {
+			root_id = id,
+			player_index = root.player_index,
+			last_props = root.root_props,
+		}
 		if root.root_element and root.root_element.valid then
 			ev.element = root.root_element
 		end
-		event.raise("relm.root_destroyed", ev)
+		if __EVENT_SINK__ then __EVENT_SINK__.raise("relm.root_destroyed", ev) end
 	end
 	defer_render()
 	return true
 end
-
--- When a root element is destroyed, perhaps by a process outside Relm's
--- control, ensure referential integrity is maintained by destroying the
--- Relm state as well.
-event.bind(defines.events.on_object_destroyed, function(ev)
-	if ev.type ~= defines.target_type.gui_element then return end
-	local relm_state = storage._relm
-	if not relm_state then return end
-	-- Migration may cause reg_num_map to be missing.
-	if not relm_state.reg_num_map then return end
-	local id = relm_state.reg_num_map[ev.registration_number]
-	if id then lib.root_destroy(id) end
-end)
 
 ---Returns a handle to the root element with the given ID.
 ---@param id Relm.RootId?
@@ -1782,6 +1857,24 @@ function lib.get_root_id(element)
 	if element and element.valid then
 		return element.tags.__relm_root --[[@as Relm.RootId?]]
 	end
+end
+
+---Given a Relm root ID, get the root `LuaGuiElement` if it exists.
+---@param id Relm.RootId?
+---@return LuaGuiElement? root_element
+function lib.get_root_element(id)
+	local root = storage._relm.roots[id or ""] --[[@as Relm.Internal.Root? ]]
+	if root then return root.root_element end
+end
+
+---Given a handle to a Relm element, get the `LuaGuiElement` associated with
+---its root.
+---@param handle Relm.Handle
+---@return LuaGuiElement? root_element
+function lib.get_root_element_from_handle(handle)
+	local vnode = handle --[[@as Relm.Internal.VNode]]
+	local root = storage._relm.roots[vnode.root_id or -1]
+	if root then return root.root_element end
 end
 
 ---Iterate all Relm roots. This is an "escape valve" for debugging and
@@ -1884,10 +1977,10 @@ end
 ---A primitive element whose props are passed directly to Factorio GUI
 ---for rendering.
 ---@type fun(props: Relm.PrimitiveDefinition, children?: Relm.Node[]): Relm.Node
-lib.Primitive = lib.define_element({
-	name = "Primitive",
-	render = function(props) return props.children end,
-})
+lib.Primitive = lib.define(
+	"Primitive",
+	function(props) return props.children end
+)
 
 --------------------------------------------------------------------------------
 -- API: SIDE EFFECTS
@@ -2092,6 +2185,22 @@ function lib.invoke_closure(handle, closure_ref, ...)
 	if type(closure) == "function" then return closure(...) end
 end
 
+---Hook that associates transient data with the currently rendering node.
+---@param data any Arbitrary transient data.
+function lib.use_transient(data)
+	if not hook_node then
+		error("use_transient: Hook must be called during render")
+	end
+	set_node_transient(hook_node, data)
+end
+
+---Get transient data associated with a node.
+---@param handle Relm.Handle The node to get transient data from.
+---@return any data The transient data associated with the node, or `nil` if no transient data is associated.
+function lib.get_transient(handle)
+	return get_node_transient(handle --[[@as Relm.Internal.VNode]])
+end
+
 --------------------------------------------------------------------------------
 -- API: QUERIES
 --------------------------------------------------------------------------------
@@ -2103,6 +2212,7 @@ end
 ---@return boolean handled Whether the query was handled.
 ---@return Relm.QueryResponse? result The result of the query, if handled.
 function lib.query(handle, payload)
+	---@diagnostic disable-next-line: return-type-mismatch
 	return vquery(handle --[[@as Relm.Internal.VNode]], payload)
 end
 

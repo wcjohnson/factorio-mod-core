@@ -314,5 +314,6 @@ end)
 function lib.at_method(tick, serializable_object, method_name, ...)
 	return lib.at(tick, "@call_method", { serializable_object, method_name, ... })
 end
+lib.call_method_at = lib.at_method
 
 return lib

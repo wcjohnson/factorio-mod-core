@@ -1,3 +1,5 @@
+---@diagnostic disable: different-requires
+
 local relm = require("lib.core.relm.relm")
 local relm_util = require("lib.core.relm.util")
 
@@ -60,6 +62,25 @@ function lib.CallIf(cond, fn, ...)
 		return fn(...)
 	else
 		return empty
+	end
+end
+
+---Gather elements into an array, flattening subarrays and recursively
+---gathering return values of functions.
+---@param dst Relm.Node[]
+local function gather_flat(dst, ...)
+	local n = select("#", ...)
+	for i = 1, n do
+		local x = select(i, ...)
+		if type(x) == "function" then
+			gather_flat(dst, x())
+		elseif type(x) == "table" then
+			if x.type then
+				dst[#dst + 1] = x
+			else
+				gather_flat(dst, table.unpack(x))
+			end
+		end
 	end
 end
 
@@ -268,7 +289,13 @@ end
 lib.Titlebar = relm.define_element({
 	name = "Titlebar",
 	render = function(props)
-		return Pr({ type = "flow", direction = "horizontal" }, {
+		local has_close_button = props.closable or props.on_close
+		local close_button_props = nil
+		if props.on_close then
+			close_button_props = { on_click = props.on_close }
+		end
+
+		local children = {
 			Pr({
 				type = "label",
 				caption = props.caption,
@@ -278,11 +305,15 @@ lib.Titlebar = relm.define_element({
 			props.draggable and Pr({
 				ref = props.drag_handle_ref,
 				type = "empty-widget",
-				style = "flib_titlebar_drag_handle",
+				style = "relm_titlebar_drag_handle",
 			}),
-			lib.CallIf(props.decoration, props.decoration, props),
-			props.closable and lib.CloseButton(),
-		})
+		}
+		if props.decoration then gather_flat(children, props.decoration) end
+		if has_close_button then
+			children[#children + 1] = lib.CloseButton(close_button_props)
+		end
+
+		return Pr({ type = "flow", direction = "horizontal" }, children)
 	end,
 })
 
@@ -308,6 +339,7 @@ lib.WindowFrame = relm.define_element({
 			lib.Titlebar({
 				draggable = true,
 				closable = closable,
+				on_close = props.on_close,
 				caption = props.caption,
 				drag_handle_ref = set_drag_handle,
 				decoration = props.decoration,
@@ -786,6 +818,7 @@ lib.TabbedPane = relm.define_element({
 		return false
 	end,
 	state = function(props)
+		---@diagnostic disable-next-line: return-type-mismatch
 		return { selected_tab = props.initial_selected_tab or 1 }
 	end,
 })
@@ -883,7 +916,7 @@ local function paint_signal_counts(elem, primitive_props)
 				type = "choose-elem-button",
 				elem_type = "signal",
 				enabled = false,
-				style = "flib_slot_button_default",
+				style = "relm_slot_button_default",
 			})
 			button.elem_value = signal
 			button.add({
@@ -917,5 +950,133 @@ lib.SignalCountsTable = relm.define_element({
 		})
 	end,
 })
+
+--------------------------------------------------------------------------------
+-- WINDOW MANAGEMENT
+--------------------------------------------------------------------------------
+
+lib.PinButton = relm.define("ultros.PinButton", function(props)
+	local is_pinned = props.pinned
+	local set_pinned = props.set_pinned or noop
+	return lib.SpriteButton({
+		style = "frame_action_button",
+		sprite = "relm_pin_white",
+		on_click = function() set_pinned(not is_pinned) end,
+		toggled = is_pinned,
+		tooltip = {
+			"",
+			"Pin this window. When pinned, it will not be automatically closed.",
+		},
+	})
+end)
+
+local GUI_TYPE_CUSTOM = defines.gui_type.custom
+
+function lib.use_pinnable()
+	local pinned, _set_pinned = relm.use_state(false)
+	return pinned, _set_pinned
+end
+
+---Automatically set and unset `player.opened` for this root, while also
+---enabling "pinning" functionality.
+---@param player_index PlayerIndex
+function lib.use_player_opened_pinnable(player_index)
+	local player = player_index and game.get_player(player_index)
+	local pinned, _set_pinned = relm.use_state(false)
+
+	-- Set player.opened according to the pinned state
+	relm.use_effect(pinned, function(handle, is_pinned)
+		local elt = relm.get_root_element_from_handle(handle)
+		if (not player) or not elt or not elt.valid then return end
+		if is_pinned then
+			-- If pinned and I am player.opened, unset player.opened
+			if player.opened == elt then player.opened = nil end
+		else
+			if not player.opened then
+				-- If unpinned and nothing is player.opened, make me player.opened.
+				player.opened = elt
+			end
+		end
+	end)
+
+	-- Initially set player.opened to me regardless
+	relm.use_effect(true, function(handle)
+		local elt = relm.get_root_element_from_handle(handle)
+		if (not player) or not elt or not elt.valid then return end
+		player.opened = elt
+	end)
+
+	return pinned, _set_pinned
+end
+
+---Closes this window when a custom gui is `on_gui_closed`. If pinned,
+---will not close the window.
+---@param player_index PlayerIndex
+---@param close_me fun()
+---@param is_pinned boolean?
+---@param type_filter defines.gui_type|nil If set, only close the window if the closed GUI is of this type. By default, only close on custom GUIs.
+function lib.use_close_on_gui_closed(
+	player_index,
+	close_me,
+	is_pinned,
+	type_filter
+)
+	relm_util.use_event_handler(
+		defines.events.on_gui_closed,
+		function(me, _, event)
+			---@cast event EventData.on_gui_closed
+			if is_pinned then return end
+			if
+				(event.gui_type == (type_filter or GUI_TYPE_CUSTOM))
+				and event.player_index == player_index
+			then
+				close_me()
+			end
+		end
+	)
+end
+
+---Auto-center the window on the screen when it is first opened.
+function lib.use_auto_center_on_open()
+	relm.use_effect(true, function(handle)
+		local elt = relm.get_root_element_from_handle(handle)
+		if elt and elt.valid then elt.force_auto_center() end
+	end)
+end
+
+---Memoize a position on window close and restore it on open.
+---Wraps your close handler and creates a new one. You should use the returned handler in place of your original close handler.
+---@param close_me fun()
+---@param load_pos fun(): GuiLocation? Function to load a memoized position.
+---@param save_pos fun(xy: GuiLocation?) Function to save the current position. The position passed to this function will be the last position of the window before it was closed.
+---@param apply_default_pos fun(elt: LuaGuiElement) Apply a default position to the rendered window if no memoized position was found.
+function lib.use_memoized_window_position(
+	close_me,
+	load_pos,
+	save_pos,
+	apply_default_pos
+)
+	local me = relm.use_handle()
+
+	local function new_close()
+		local elt = relm.get_root_element_from_handle(me)
+		if elt and elt.valid then save_pos(elt.location) end
+		close_me()
+	end
+
+	relm.use_effect(true, function(handle)
+		local elt = relm.get_root_element_from_handle(handle)
+		if elt and elt.valid then
+			local xy = load_pos()
+			if xy then
+				elt.location = xy
+			else
+				apply_default_pos(elt)
+			end
+		end
+	end)
+
+	return new_close
+end
 
 return lib

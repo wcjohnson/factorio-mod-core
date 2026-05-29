@@ -1,3 +1,5 @@
+---@diagnostic disable: different-requires
+
 local type = type
 local tostring = tostring
 local SERPENT_ARGS = { maxlevel = 5, maxnum = 20, nocode = true }
