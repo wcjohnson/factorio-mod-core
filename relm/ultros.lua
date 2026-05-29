@@ -854,7 +854,9 @@ lib.TimedRepaintWrapper = relm.define_element({
 	name = "ultros.TimedRepaintWrapper",
 	render = function(props)
 		relm_util.use_timer(props.period or 60, "_repaint")
-		return props.render()
+		local t = game and game.tick or 0
+		local tp = game and game.tick_paused or 0
+		return props.render(t, tp)
 	end,
 	message = function(me, message, props)
 		if message.key == "_repaint" then
@@ -892,43 +894,79 @@ local function format_signal_count(count)
 	) or absv >= 1e3 and si_format(count, 1e3, "k") or tostring(count)
 end
 
+---@class Ultros.SignalButtonInfo
+---@field public signal SignalID The signal to display.
+---@field public count number|LocalisedString Lower caption.
+---@field public upper (number|LocalisedString)? Upper caption, for an "X/Y" style display.
+---@field public button_style string? Style for the button itself, defaults to "relm_slot_button_default".
+---@field public lower_color Color? Font color for the lower caption.
+---@field public upper_color Color? Font color for the upper caption.
+
 ---Manual paint function for signal counts
 ---@param elem LuaGuiElement
 ---@param primitive_props table
-local function paint_signal_counts(elem, primitive_props)
+local function paint_buttons(elem, primitive_props)
 	local props = primitive_props.parent_props
+	local buttons = props.buttons --[[@as Ultros.SignalButtonInfo[]? ]]
+	local buttons_table = props.buttons_table --[[@as { [any]: Ultros.SignalButtonInfo}? ]]
+	local uppers = props.uppers
 
-	local signals = props.signals or empty
-	local counts = props.counts or empty
 	local child_index = 1
-
 	local children = elem.children
+	local iter1, iter2, iter3
+	if buttons then
+		iter1, iter2, iter3 = ipairs(buttons)
+	elseif buttons_table then
+		iter1, iter2, iter3 = pairs(buttons_table)
+	end
 
-	for i = 1, #signals do
-		local signal = signals[i]
+	for i, button_info in iter1, iter2, iter3 do
+		---@diagnostic disable-next-line: need-check-nil
 		local button = children[child_index]
-		local caption = ""
-		local count = counts[i]
-		if type(count) == "number" then caption = format_signal_count(count) end
+		local count = button_info.count
+		if type(count) == "number" then count = format_signal_count(count) end
+		local upper_count = button_info.upper
+		if type(upper_count) == "number" then
+			upper_count = format_signal_count(upper_count)
+		end
 
 		if not button then
 			button = elem.add({
 				type = "choose-elem-button",
 				elem_type = "signal",
 				enabled = false,
-				style = "relm_slot_button_default",
+				style = button_info.button_style or "relm_slot_button_default",
 			})
-			button.elem_value = signal
 			button.add({
 				type = "label",
-				style = "relm_label_signal_count_inventory",
+				style = "relm_label_signal_count",
 				ignored_by_interaction = true,
-				caption = caption,
 			})
-		else
-			button.elem_value = signal
-			button.children[1].caption = caption
+			if uppers then
+				local upper_label = button.add({
+					type = "label",
+					style = "relm_label_signal_count",
+					ignored_by_interaction = true,
+				})
+				upper_label.style.height = 24
+			end
 		end
+
+		button.elem_value = button_info.signal
+		button.style = button_info.button_style or "relm_slot_button_default"
+		local lower = button.children[1]
+		lower.caption = count or ""
+		if button_info.lower_color then
+			lower.style.font_color = button_info.lower_color
+		end
+		if uppers then
+			local upper = button.children[2]
+			upper.caption = upper_count or ""
+			if button_info.upper_color then
+				upper.style.font_color = button_info.upper_color
+			end
+		end
+
 		child_index = child_index + 1
 	end
 
@@ -938,14 +976,14 @@ local function paint_signal_counts(elem, primitive_props)
 	end
 end
 
-lib.SignalCountsTable = relm.define_element({
-	name = "ultros.SignalCountsTable",
+lib.SlotButtonTable = relm.define_element({
+	name = "ultros.SlotButtonTable",
 	render = function(props)
 		return Pr({
 			type = "table",
 			column_count = props.column_count,
-			manual_paint = paint_signal_counts,
-			style = props.style,
+			manual_paint = paint_buttons,
+			style = props.style or "slot_table",
 			parent_props = props,
 		})
 	end,

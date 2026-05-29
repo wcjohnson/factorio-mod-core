@@ -605,11 +605,10 @@ styles.relm_raised_frame = {
 	padding = 4,
 }
 
-styles.relm_label_signal_count_inventory = {
+styles.relm_label_signal_count = {
 	type = "label_style",
 	parent = "count_label",
 	size = 36,
-	width = 36,
 	horizontal_align = "right",
 	vertical_align = "bottom",
 	right_padding = 2,
