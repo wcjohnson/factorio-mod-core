@@ -855,8 +855,7 @@ lib.TimedRepaintWrapper = relm.define_element({
 	render = function(props)
 		relm_util.use_timer(props.period or 60, "_repaint")
 		local t = game and game.tick or 0
-		local tp = game and game.tick_paused or 0
-		return props.render(t, tp)
+		return props.render(t)
 	end,
 	message = function(me, message, props)
 		if message.key == "_repaint" then
