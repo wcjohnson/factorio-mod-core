@@ -123,6 +123,19 @@ scheduler.register_handler("relm_timer", function(task)
 	return scheduler.ABORT
 end)
 
+scheduler.register_handler("relm_closure", function(task)
+	local data = task.data
+	if data then
+		local component = data[1]
+		local closure = data[2]
+		if relm.is_valid(component) then
+			relm.invoke_closure(component, closure, component)
+			return
+		end
+	end
+	return scheduler.ABORT
+end)
+
 local function use_timer_binder(handle, period_msg)
 	return scheduler.every(period_msg[1], "relm_timer", { handle, period_msg[2] })
 end
@@ -134,6 +147,17 @@ local function use_timer_unbinder(id) scheduler.stop(id) end
 ---@param msg string The message to send to the component. The message will be sent with the key `msg`.
 function lib.use_timer(period, msg)
 	relm.use_effect({ period, msg }, use_timer_binder, use_timer_unbinder)
+end
+
+---Execute the given handler every `period` ticks.
+---@param period uint The period in ticks.
+---@param handler fun(me: Relm.Handle): nil The closure to execute. It will be passed the component handle as an argument.
+function lib.use_timer_handler(period, handler)
+	local _, relm_closure = relm.use_closure(handler)
+	relm.use_effect(period, function(me, _period)
+		---@cast _period uint
+		return scheduler.every(_period, "relm_closure", { me, relm_closure })
+	end, use_timer_unbinder)
 end
 
 return lib
