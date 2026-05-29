@@ -90,6 +90,7 @@ local function do_at(tick, task_id)
 end
 
 -- Tick handler. Runs every tick and executes any tasks scheduled for that tick.
+---@diagnostic disable-next-line: undefined-field
 if not _G.__RECOVERY_MODE__ then
 	event.bind(
 		event.nth_tick(1),
@@ -268,6 +269,7 @@ end
 lib.get = get
 
 ---Change the period of an existing recurring task.
+---@param task_id Scheduler.TaskId
 function lib.set_period(task_id, period)
 	local task = lib.get(task_id) --[[@as Scheduler.RecurringTask]]
 	if not task then return end
@@ -275,8 +277,10 @@ function lib.set_period(task_id, period)
 end
 
 ---Stop a task
+---@param task_id Scheduler.TaskId?
 ---@return boolean `true` if a task record was deleted
 function lib.stop(task_id)
+	if not task_id then return false end
 	local state = storage._sched --[[@as Scheduler.Storage]]
 	local task = state.tasks[task_id] --[[@as Scheduler.RecurringTask]]
 	if not task then return false end
