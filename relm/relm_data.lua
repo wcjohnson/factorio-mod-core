@@ -605,6 +605,56 @@ styles.relm_raised_frame = {
 	padding = 4,
 }
 
+styles.relm_raised_frame_slot_buttons = {
+	type = "frame_style",
+	parent = "relm_raised_frame",
+	background_graphical_set = {
+		position = { 282, 17 },
+		corner_size = 8,
+		overall_tiling_vertical_size = 32,
+		overall_tiling_vertical_spacing = 8,
+		overall_tiling_vertical_padding = 4,
+		overall_tiling_horizontal_size = 32,
+		overall_tiling_horizontal_spacing = 8,
+		overall_tiling_horizontal_padding = 4,
+	},
+}
+
+-- A plain frame with a background consisting of empty slot buttons.
+styles.relm_frame_slot_buttons_deep = {
+	type = "frame_style",
+	graphical_set = { type = "none" },
+	background_graphical_set = {
+		position = { 282, 17 },
+		corner_size = 8,
+		overall_tiling_vertical_size = 40,
+		overall_tiling_vertical_spacing = 0,
+		overall_tiling_vertical_padding = 0,
+		overall_tiling_horizontal_size = 40,
+		overall_tiling_horizontal_spacing = 0,
+		overall_tiling_horizontal_padding = 0,
+	},
+	padding = 0,
+	margin = 0,
+}
+
+styles.relm_frame_slot_buttons_shallow = {
+	type = "frame_style",
+	graphical_set = { type = "none" },
+	background_graphical_set = {
+		position = { 256, 136 },
+		corner_size = 16,
+		overall_tiling_vertical_size = 24,
+		overall_tiling_vertical_spacing = 16,
+		overall_tiling_vertical_padding = 8,
+		overall_tiling_horizontal_size = 24,
+		overall_tiling_horizontal_spacing = 16,
+		overall_tiling_horizontal_padding = 8,
+	},
+	padding = 0,
+	margin = 0,
+}
+
 styles.relm_label_signal_count = {
 	type = "label_style",
 	parent = "count_label",

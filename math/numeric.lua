@@ -24,11 +24,11 @@ function lib.format_ticks(ticks)
 	seconds = seconds % 60
 	minutes = minutes % 60
 	if minutes == 0 and hours == 0 then
-		return string.format("%dvs", seconds)
+		return string.format("%ds", seconds)
 	elseif hours == 0 then
-		return string.format("%dvm%02dvs", minutes, seconds)
+		return string.format("%dm%02ds", minutes, seconds)
 	else
-		return string.format("%dvh%02dvm%02dvs", hours, minutes, seconds)
+		return string.format("%dh%02dm%02ds", hours, minutes, seconds)
 	end
 end
 

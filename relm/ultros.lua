@@ -285,6 +285,13 @@ lib.RtMultilineLabel = function(caption)
 		caption = caption,
 	})
 end
+lib.Indicator = function(color)
+	return Pr({
+		type = "sprite",
+		style = "relm_indicator",
+		sprite = "relm_indicator_" .. color,
+	})
+end
 
 lib.Titlebar = relm.define_element({
 	name = "Titlebar",
