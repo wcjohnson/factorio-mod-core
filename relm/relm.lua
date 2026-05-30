@@ -1214,7 +1214,7 @@ local function vrepaint(vnode)
 				end,
 				assign_name = root.name_in_container,
 			})
-		elseif elem then
+		elseif elem and elem.valid then
 			vpaint_stats(vnode, {
 				elem = elem,
 				index = 1,
