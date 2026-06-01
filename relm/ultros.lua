@@ -1054,6 +1054,15 @@ function lib.use_player_opened_pinnable(player_index)
 	return pinned, _set_pinned
 end
 
+function lib.use_player_opened(player_index)
+	local player = player_index and game.get_player(player_index)
+	relm.use_effect(true, function(handle)
+		local elt = relm.get_root_element_from_handle(handle)
+		if (not player) or not elt or not elt.valid then return end
+		player.opened = elt
+	end)
+end
+
 ---Closes this window when a custom gui is `on_gui_closed`. If pinned,
 ---will not close the window.
 ---@param player_index PlayerIndex
