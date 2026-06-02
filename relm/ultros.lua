@@ -8,15 +8,25 @@ local type = _G.type
 local abs = math.abs
 local floor = math.floor
 
+local msg_bubble = relm.msg_bubble
+local msg_broadcast = relm.msg_broadcast
+local Pr = relm.Primitive
+
 local lib = {}
 
 local noop = function() end
 local empty = setmetatable({}, {
 	__newindex = noop,
 })
-local msg_bubble = relm.msg_bubble
-local msg_broadcast = relm.msg_broadcast
-local Pr = relm.Primitive
+
+local function map(A, f)
+	local B = {}
+	for i = 1, #A do
+		local x = f(A[i], i)
+		if x ~= nil then B[#B + 1] = x end
+	end
+	return B
+end
 
 local function run_event_handler(handler, me, value, element, event)
 	if type(handler) == "function" then
@@ -736,15 +746,6 @@ function lib.gather(tag_or_children, children)
 	end
 end
 
-local function map(A, f)
-	local B = {}
-	for i = 1, #A do
-		local x = f(A[i], i)
-		if x ~= nil then B[#B + 1] = x end
-	end
-	return B
-end
-
 lib.RadioButtons = relm.define_element({
 	name = "ultros.RadioButtons",
 	render = function(props)
@@ -1075,16 +1076,15 @@ function lib.use_close_on_gui_closed(
 	is_pinned,
 	type_filter
 )
+	local me = relm.use_handle()
 	relm_util.use_event_handler(
 		defines.events.on_gui_closed,
-		function(me, _, event)
+		function(_me, _, event)
 			---@cast event EventData.on_gui_closed
-			if is_pinned then return end
-			if
-				(event.gui_type == (type_filter or GUI_TYPE_CUSTOM))
-				and event.player_index == player_index
-			then
-				close_me()
+			if is_pinned or (event.player_index ~= player_index) then return end
+			if event.element == me then return close_me() end
+			if event.gui_type == (type_filter or GUI_TYPE_CUSTOM) then
+				return close_me()
 			end
 		end
 	)
