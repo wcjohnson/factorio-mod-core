@@ -66,7 +66,7 @@ lib.get_blueprint_entity_pos = get_blueprint_entity_pos
 ---the given parameters, determine the resulting world position of
 ---each entity of the blueprint.
 ---@param bp_entities BlueprintEntity[] A *nonempty* set of blueprint entities
----@param bp_entity_filter? fun(bp_entity: BlueprintEntity): boolean Filters which blueprint entities will have their positions computed. Filtering can save some work in handling large blueprints. (Note that you MUST NOT prefilter the blueprint entities array before calling this function.)
+---@param bp_entity_filter? fun(bp_entity: BlueprintEntity, index: uint32): boolean Filters which blueprint entities will have their positions computed. Filtering can save some work in handling large blueprints. (Note that you MUST NOT prefilter the blueprint entities array before calling this function.)
 ---@param bbox BoundingBox As computed by `get_blueprint_bbox`.
 ---@param snap_index uint? As computed by `get_blueprint_bbox`.
 ---@param position MapPosition Placement position of the blueprint in worldspace.
@@ -245,7 +245,7 @@ local function get_blueprint_world_positions(
 	local bp_to_world_pos = {}
 	for i = 1, #bp_entities do
 		local bp_entity = bp_entities[i]
-		if bp_entity_filter and not bp_entity_filter(bp_entity) then
+		if bp_entity_filter and not bp_entity_filter(bp_entity, i) then
 			goto continue
 		end
 
