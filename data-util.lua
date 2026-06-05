@@ -1,4 +1,5 @@
 -- Data phase utilities
+local tlib = require("lib.core.table")
 
 local lib = {}
 
@@ -30,6 +31,15 @@ function lib.copy_prototype(prototype, new_name, remove_icon)
 	end
 
 	return p
+end
+
+---Convert a Sprite to a RotatedSprite by adding `direction_count=1`.
+---@param sprite data.Sprite
+---@return data.RotatedSprite rotated_sprite
+function lib.sprite_to_rotated(sprite)
+	local rotated = table.deepcopy(sprite) --[[@as data.RotatedSprite]]
+	rotated.direction_count = 1
+	return rotated
 end
 
 return lib
