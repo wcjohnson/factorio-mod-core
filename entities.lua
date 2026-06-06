@@ -33,4 +33,34 @@ function lib.ghost_set_tag(ghost, key, value)
 	ghost.tags = tags
 end
 
+local RED = defines.wire_connector_id.circuit_red
+local CI_RED = defines.wire_connector_id.combinator_input_red
+local CO_RED = defines.wire_connector_id.combinator_output_red
+local GREEN = defines.wire_connector_id.circuit_green
+local CI_GREEN = defines.wire_connector_id.combinator_input_green
+local CO_GREEN = defines.wire_connector_id.combinator_output_green
+
+---Get the color of a wire from its wire_connector_id
+---@param connector_id defines.wire_connector_id?
+---@return boolean is_red
+---@return boolean is_green
+function lib.get_wire_color(connector_id)
+	if not connector_id then return false, false end
+	if
+		connector_id == RED
+		or connector_id == CI_RED
+		or connector_id == CO_RED
+	then
+		return true, false
+	end
+	if
+		connector_id == GREEN
+		or connector_id == CI_GREEN
+		or connector_id == CO_GREEN
+	then
+		return false, true
+	end
+	return false, false
+end
+
 return lib
