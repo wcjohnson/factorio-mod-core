@@ -34,12 +34,19 @@ function lib.copy_prototype(prototype, new_name, remove_icon)
 end
 
 ---Convert a Sprite to a RotatedSprite by adding `direction_count=1`.
+---WARNING: this performs deep mutation of the table. Deepcopy first if you want to preserve the original.
 ---@param sprite data.Sprite
 ---@return data.RotatedSprite rotated_sprite
 function lib.sprite_to_rotated(sprite)
-	local rotated = table.deepcopy(sprite) --[[@as data.RotatedSprite]]
-	rotated.direction_count = 1
-	return rotated
+	if sprite.layers then
+		for _, layer in pairs(sprite.layers) do
+			lib.sprite_to_rotated(layer)
+		end
+	else
+		sprite.direction_count = 1
+	end
+
+	return sprite
 end
 
 return lib
