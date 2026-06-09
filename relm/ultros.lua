@@ -362,10 +362,13 @@ lib.WindowFrame = relm.define_element({
 				decoration = props.decoration,
 			}),
 		}, props.children)
-		return Pr(
-			{ ref = set_window, type = "frame", direction = "vertical" },
-			children
-		)
+		return Pr({
+			ref = set_window,
+			type = "frame",
+			direction = "vertical",
+			height = props.height,
+			width = props.width,
+		}, children)
 	end,
 })
 
@@ -722,6 +725,26 @@ lib.Input = lib.customize_primitive({
 			)
 		end
 	)
+end)
+
+lib.UncontrolledInput = relm.define("ultros.UncontrolledInput", function(props)
+	local value, set_value = relm.use_state(props.value)
+	local dirty, set_dirty = relm.use_state(false)
+	local base_on_change = props.on_change or noop
+	local next_props = assign({}, props)
+	next_props.on_change = function(me, new_value)
+		set_value(new_value)
+		set_dirty(true)
+	end
+	next_props.on_confirm = function(me, new_value)
+		set_value(new_value)
+		set_dirty(false)
+		base_on_change(me, new_value)
+	end
+	next_props.on_cleanup = function()
+		if dirty then base_on_change(nil, value) end
+	end
+	return lib.Input(next_props)
 end)
 
 lib.Tag = relm.define_element({
