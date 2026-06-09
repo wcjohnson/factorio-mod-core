@@ -63,4 +63,44 @@ function lib.get_wire_color(connector_id)
 	return false, false
 end
 
+local WO_PLAYER = defines.wire_origin.player
+local WO_SCRIPT = defines.wire_origin.script
+
+---@alias Core.WireConnectionFrom [defines.wire_connector_id, defines.wire_origin, LuaEntity, defines.wire_connector_id]
+
+---Get all wire connections emanating from a given entity.
+---@param from LuaEntity
+---@param include_script? boolean? whether to include connections from script wires in the results
+---@return Core.WireConnectionFrom[] connections
+function lib.get_wire_connections_from(from, include_script)
+	local connections = {}
+	for wcid, connector in pairs(from.get_wire_connectors(false)) do
+		for _, connection in pairs(connector.connections) do
+			local origin = connection.origin
+			if (origin == WO_PLAYER) or (include_script and origin == WO_SCRIPT) then
+				local target = connection.target
+				connections[#connections + 1] = { wcid, origin, target.owner, target.wire_connector_id }
+			end
+		end
+	end
+	return connections
+end
+
+---Reapply wire connections obtained by `get_wire_connections_from` to a given entity.
+---@param from LuaEntity
+---@param connections Core.WireConnectionFrom[]
+---@param reach_check boolean? whether to check circuit network reachability before reconnecting
+function lib.restore_wire_connections_from(from, connections, reach_check)
+	for _, connection in pairs(connections) do
+		local wcid, origin, target_entity, target_wcid = table.unpack(connection)
+		local from_connector = from.get_wire_connector(wcid, true)
+		if from_connector then
+			local to_connector = target_entity.valid and target_entity.get_wire_connector(target_wcid, true)
+			if to_connector then
+				from_connector.connect_to(to_connector, reach_check, origin)
+			end
+		end
+	end
+end
+
 return lib
