@@ -63,9 +63,9 @@ function lib.IfElse(cond, then_node, else_node)
 	end
 end
 
----Call `fn` if `cond` is true, otherwise return an empty table. Useful for
+---Call `fn` if `cond` is truthy, otherwise return an empty table. Useful for
 ---conditional Relm rendering.
----@param cond boolean|nil
+---@param cond any
 ---@param fn fun(...): Relm.Children
 function lib.CallIf(cond, fn, ...)
 	if cond then
