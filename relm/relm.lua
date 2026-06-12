@@ -1068,7 +1068,15 @@ local function vpaint(vnode, context, same)
 
 	if has_manual_paint then
 		-- Manual painted nodes are responsible for painting their children, so we don't recurse.
-		return props.manual_paint(vnode.elem, props)
+		local root_id = context.root_id
+		local index = vnode.elem.index
+		local function get_event_tags()
+			return {
+				__relm_root = root_id,
+				[LISTEN_KEY] = index,
+			}
+		end
+		return props.manual_paint(vnode.elem, props, get_event_tags)
 	else
 		-- Handle children
 		local vchildren = vnode.children or EMPTY
@@ -1971,17 +1979,6 @@ function lib.element(element_type, props)
 	return {
 		type = element_type,
 		props = props,
-	}
-end
-
----Get a tags structure that you can apply to a manually painted element which
----will cause events to be raised in the parent primitive context. This ONLY
----works when using `Primitive.manual_paint`.
----@param manually_painted_element LuaGuiElement The manually-painted element. Must be the first arg in a `manual_paint` handler function.
----@return Tags tags A tags table that you can apply to the manually painted element. This will cause events to be raised in the parent primitive context when the element is interacted with. You MUST apply these tags to the manually painted element for events to work.
-function lib.get_event_tags(manually_painted_element)
-	return {
-		[LISTEN_KEY] = manually_painted_element.index,
 	}
 end
 
