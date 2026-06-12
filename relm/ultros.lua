@@ -39,6 +39,14 @@ local function run_event_handler(handler, me, value, element, event)
 	end
 end
 
+local function Boolean(x)
+	if x then
+		return true
+	else
+		return false
+	end
+end
+
 ---Return `then_node` if `cond` is true, otherwise return an empty table. Useful for
 ---conditional Relm rendering.
 ---@param cond any
@@ -932,11 +940,13 @@ end
 ---@field public button_style string? Style for the button itself, defaults to "relm_slot_button_default".
 ---@field public lower_color Color? Font color for the lower caption.
 ---@field public upper_color Color? Font color for the upper caption.
+---@field public locked? boolean If true, the button will not open the change dialogue when clicked.
 
 ---Manual paint function for signal counts
 ---@param elem LuaGuiElement
 ---@param primitive_props table
-local function paint_buttons(elem, primitive_props)
+---@param get_event_tags fun(): Tags
+local function paint_buttons(elem, primitive_props, get_event_tags)
 	local props = primitive_props.parent_props
 	local default_style = props.button_style or "relm_slot_button_default"
 	local buttons = props.buttons --[[@as Ultros.SignalButtonInfo[]? ]]
@@ -987,9 +997,10 @@ local function paint_buttons(elem, primitive_props)
 			end
 		end
 		if is_enabled then
-			local tag_base = relm.get_event_tags(button)
+			local tag_base = get_event_tags()
 			tag_base.button_index = button_index
 			button.tags = tag_base
+			button.locked = Boolean(button_info and button_info.locked)
 		else
 			button.tags = nil
 		end
@@ -1027,18 +1038,18 @@ local function paint_buttons(elem, primitive_props)
 end
 
 lib.SlotButtonTable = relm.define("ultros.SlotButtonTable", function(props)
-	local function handler(_me, gui_event, _props)
+	local function handler(_me, relm_event, _props)
+		local gui_event = relm_event.event
 		local elt = gui_event.element
 		local tags = elt.tags
 		local button_index = tags and tags.button_index
 		if not button_index then return end
-
 		if gui_event.name == defines.events.on_gui_elem_changed then
 			local hdlr = _props.on_change
-			if hdlr then return hdlr(button_index, elt.elem_value) end
+			if hdlr then return hdlr(button_index, elt.elem_value, gui_event) end
 		elseif gui_event.name == defines.events.on_gui_click then
 			local hdlr = _props.on_click
-			if hdlr then return hdlr(button_index, elt.elem_value) end
+			if hdlr then return hdlr(button_index, elt.elem_value, gui_event) end
 		end
 	end
 
@@ -1049,11 +1060,143 @@ lib.SlotButtonTable = relm.define("ultros.SlotButtonTable", function(props)
 		style = props.style or "slot_table",
 		parent_props = props,
 		message_handler = handler,
+		on_click = props.on_click,
+		on_change = props.on_change,
 	})
 end)
 
+local RIGHT_CLICK = defines.mouse_button_type.right
+
 lib.SignalCountsInput = relm.define("ultros.SignalCountsInput", function(props)
 	local selected_index, set_selected_index = relm.use_state(0)
+	local on_change = props.on_change or noop
+	local input_signals = props.signals or empty
+	local input_counts = props.counts or empty
+	local me = relm.use_handle()
+
+	local signals = {}
+	local counts = {}
+	for i, signal in ipairs(input_signals) do
+		if signal then
+			signals[#signals + 1] = signal
+			local count = input_counts[i]
+			counts[#counts + 1] = type(count) == "number" and count or 1
+		end
+	end
+
+	local n_signals = #signals
+	local n_columns = props.column_count or 10
+	local n_buttons_base = n_signals + 1 -- Keep one guaranteed empty slot.
+	local n_rows = math.max(1, math.ceil(n_buttons_base / n_columns))
+	local n_buttons = n_rows * n_columns
+
+	---@param set_index uint?
+	---@param set_signal SignalID?
+	---@param set_count uint32?
+	---@param insert_signal SignalID?
+	---@param remove_index uint?
+	local function edit_signals(
+		set_index,
+		set_signal,
+		set_count,
+		insert_signal,
+		remove_index
+	)
+		local next_signals = {}
+		local next_counts = {}
+		for i = 1, n_signals do
+			next_signals[i] = signals[i]
+			next_counts[i] = counts[i]
+		end
+
+		if set_index then
+			if set_signal then next_signals[set_index] = set_signal end
+			if set_count then next_counts[set_index] = set_count end
+		elseif insert_signal then
+			table.insert(next_signals, insert_signal)
+			table.insert(next_counts, 1)
+		elseif remove_index then
+			table.remove(next_signals, remove_index)
+			table.remove(next_counts, remove_index)
+			if selected_index > remove_index then
+				set_selected_index(selected_index - 1)
+			elseif selected_index == remove_index then
+				set_selected_index(0)
+			end
+		end
+
+		on_change(me, next_signals, next_counts)
+	end
+
+	local buttons = {}
+	for i = 1, n_buttons do
+		if i <= n_signals then
+			buttons[i] = {
+				signal = signals[i],
+				count = counts[i],
+				button_style = i == selected_index and "flib_slot_button_yellow" or nil,
+				locked = true,
+			}
+		else
+			buttons[i] = {
+				signal = nil,
+				count = "",
+				button_style = i == selected_index and "flib_slot_button_yellow" or nil,
+				locked = false,
+			}
+		end
+	end
+
+	local selected_count = (selected_index >= 1 and selected_index <= n_signals)
+			and counts[selected_index]
+		or nil
+
+	return lib.VFlow({
+		lib.SlotButtonTable({
+			column_count = n_columns,
+			buttons = buttons,
+			enabled = true,
+			on_click = function(button_index, signal, ev)
+				if signal then
+					if ev.button == RIGHT_CLICK then
+						-- Right click clears the signal
+						edit_signals(nil, nil, nil, nil, button_index)
+					else
+						set_selected_index(button_index)
+					end
+				end
+			end,
+			on_change = function(button_index, signal)
+				if signal then
+					if button_index >= 1 and button_index <= n_signals then
+						edit_signals(button_index, signal, nil, nil, nil)
+						set_selected_index(button_index)
+					else
+						edit_signals(nil, nil, nil, signal, nil)
+						set_selected_index(n_signals + 1)
+					end
+				else
+					if button_index >= 1 and button_index <= n_signals then
+						edit_signals(nil, nil, nil, nil, button_index)
+					end
+				end
+			end,
+		}),
+		lib.Labeled({ caption = props.count_caption or "Count" }, {
+			lib.UncontrolledInput({
+				value = selected_count,
+				numeric = true,
+				width = props.count_width or 120,
+				enabled = selected_count ~= nil,
+				on_change = function(_, next_count)
+					next_count = tonumber(next_count)
+					if not next_count then return end
+					if selected_index < 1 or selected_index > n_signals then return end
+					edit_signals(selected_index, nil, next_count, nil)
+				end,
+			}),
+		}),
+	})
 end)
 
 --------------------------------------------------------------------------------
