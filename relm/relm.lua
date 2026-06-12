@@ -1974,6 +1974,17 @@ function lib.element(element_type, props)
 	}
 end
 
+---Get a tags structure that you can apply to a manually painted element which
+---will cause events to be raised in the parent primitive context. This ONLY
+---works when using `Primitive.manual_paint`.
+---@param manually_painted_element LuaGuiElement The manually-painted element. Must be the first arg in a `manual_paint` handler function.
+---@return Tags tags A tags table that you can apply to the manually painted element. This will cause events to be raised in the parent primitive context when the element is interacted with. You MUST apply these tags to the manually painted element for events to work.
+function lib.get_event_tags(manually_painted_element)
+	return {
+		[LISTEN_KEY] = manually_painted_element.index,
+	}
+end
+
 ---A primitive element whose props are passed directly to Factorio GUI
 ---for rendering.
 ---@type fun(props: Relm.PrimitiveDefinition, children?: Relm.Node[]): Relm.Node

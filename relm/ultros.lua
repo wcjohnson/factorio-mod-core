@@ -926,7 +926,7 @@ local function format_signal_count(count)
 end
 
 ---@class Ultros.SignalButtonInfo
----@field public signal SignalID The signal to display.
+---@field public signal SignalID? The signal to display or `nil` for an empty button.
 ---@field public count number|LocalisedString Lower caption.
 ---@field public upper (number|LocalisedString)? Upper caption, for an "X/Y" style display.
 ---@field public button_style string? Style for the button itself, defaults to "relm_slot_button_default".
@@ -938,9 +938,62 @@ end
 ---@param primitive_props table
 local function paint_buttons(elem, primitive_props)
 	local props = primitive_props.parent_props
+	local default_style = props.button_style or "relm_slot_button_default"
 	local buttons = props.buttons --[[@as Ultros.SignalButtonInfo[]? ]]
 	local buttons_table = props.buttons_table --[[@as { [any]: Ultros.SignalButtonInfo}? ]]
 	local uppers = props.uppers
+	local enabled = (props.enabled == true)
+
+	---@param style? string
+	local function add_button(style)
+		local button = elem.add({
+			type = "choose-elem-button",
+			elem_type = "signal",
+			style = style or default_style,
+		})
+		button.add({
+			type = "label",
+			style = "relm_label_signal_count",
+			ignored_by_interaction = true,
+		})
+		if uppers then
+			local upper_label = button.add({
+				type = "label",
+				style = "relm_label_signal_count",
+				ignored_by_interaction = true,
+			})
+			upper_label.style.height = 24
+		end
+		return button
+	end
+
+	---@param button LuaGuiElement
+	---@param button_info Ultros.SignalButtonInfo?
+	local function apply_button(button, button_info, button_index)
+		local is_enabled = enabled
+		button.enabled = is_enabled
+		button.elem_value = button_info and button_info.signal
+		button.style = (button_info and button_info.button_style) or default_style
+		local lower = button.children[1]
+		lower.caption = button_info and button_info.count or ""
+		if button_info and button_info.lower_color then
+			lower.style.font_color = button_info.lower_color
+		end
+		if uppers then
+			local upper = button.children[2]
+			upper.caption = button_info and button_info.upper or ""
+			if button_info and button_info.upper_color then
+				upper.style.font_color = button_info.upper_color
+			end
+		end
+		if is_enabled then
+			local tag_base = relm.get_event_tags(button)
+			tag_base.button_index = button_index
+			button.tags = tag_base
+		else
+			button.tags = nil
+		end
+	end
 
 	local child_index = 1
 	local children = elem.children
@@ -951,7 +1004,7 @@ local function paint_buttons(elem, primitive_props)
 		iter1, iter2, iter3 = pairs(buttons_table)
 	end
 
-	for i, button_info in iter1, iter2, iter3 do
+	for button_key, button_info in iter1, iter2, iter3 do
 		---@diagnostic disable-next-line: need-check-nil
 		local button = children[child_index]
 		local count = button_info.count
@@ -961,64 +1014,47 @@ local function paint_buttons(elem, primitive_props)
 			upper_count = format_signal_count(upper_count)
 		end
 
-		if not button then
-			button = elem.add({
-				type = "choose-elem-button",
-				elem_type = "signal",
-				enabled = false,
-				style = button_info.button_style or "relm_slot_button_default",
-			})
-			button.add({
-				type = "label",
-				style = "relm_label_signal_count",
-				ignored_by_interaction = true,
-			})
-			if uppers then
-				local upper_label = button.add({
-					type = "label",
-					style = "relm_label_signal_count",
-					ignored_by_interaction = true,
-				})
-				upper_label.style.height = 24
-			end
-		end
-
-		button.elem_value = button_info.signal
-		button.style = button_info.button_style or "relm_slot_button_default"
-		local lower = button.children[1]
-		lower.caption = count or ""
-		if button_info.lower_color then
-			lower.style.font_color = button_info.lower_color
-		end
-		if uppers then
-			local upper = button.children[2]
-			upper.caption = upper_count or ""
-			if button_info.upper_color then
-				upper.style.font_color = button_info.upper_color
-			end
-		end
-
+		if not button then button = add_button(button_info.button_style) end
+		apply_button(button, button_info, button_key)
 		child_index = child_index + 1
 	end
 
+	-- Destroy excess buttons
 	while #children >= child_index do
 		children[child_index].destroy()
 		child_index = child_index + 1
 	end
 end
 
-lib.SlotButtonTable = relm.define_element({
-	name = "ultros.SlotButtonTable",
-	render = function(props)
-		return Pr({
-			type = "table",
-			column_count = props.column_count,
-			manual_paint = paint_buttons,
-			style = props.style or "slot_table",
-			parent_props = props,
-		})
-	end,
-})
+lib.SlotButtonTable = relm.define("ultros.SlotButtonTable", function(props)
+	local function handler(_me, gui_event, _props)
+		local elt = gui_event.element
+		local tags = elt.tags
+		local button_index = tags and tags.button_index
+		if not button_index then return end
+
+		if gui_event.name == defines.events.on_gui_elem_changed then
+			local hdlr = _props.on_change
+			if hdlr then return hdlr(button_index, elt.elem_value) end
+		elseif gui_event.name == defines.events.on_gui_click then
+			local hdlr = _props.on_click
+			if hdlr then return hdlr(button_index, elt.elem_value) end
+		end
+	end
+
+	return Pr({
+		type = "table",
+		column_count = props.column_count,
+		manual_paint = paint_buttons,
+		style = props.style or "slot_table",
+		parent_props = props,
+		message_handler = handler,
+	})
+end)
+
+lib.SignalCountsInput = relm.define("ultros.SignalCountsInput", function(props)
+	local selected_index, set_selected_index = relm.use_state(0)
+end)
 
 --------------------------------------------------------------------------------
 -- WINDOW MANAGEMENT
