@@ -12,8 +12,6 @@ local lib = {}
 ---@param stack? LuaItemStack
 ---@return Core.Blueprintish? blueprintish The actual blueprint involved, stripped of any containing books or nil if not found.
 local function get_actual_blueprint(player, record, stack)
-	-- Determine the actual blueprint being held is way harder than it should be.
-	-- h/t Xorimuth on factorio discord for this code
 	if record then
 		while record and record.type == "blueprint-book" do
 			record = record.get_selected_record(player)
