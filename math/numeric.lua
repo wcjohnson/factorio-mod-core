@@ -90,4 +90,15 @@ end
 -- Round floorwards to the nearest Factorio tile.
 function lib.floor_tile(x) return floor_approx(x - 0.5) end
 
+---Explicit boolean conversion.
+---@param x any
+---@return boolean
+function lib.Boolean(x)
+	if x then
+		return true
+	else
+		return false
+	end
+end
+
 return lib

@@ -1068,7 +1068,15 @@ local function vpaint(vnode, context, same)
 
 	if has_manual_paint then
 		-- Manual painted nodes are responsible for painting their children, so we don't recurse.
-		return props.manual_paint(vnode.elem, props)
+		local root_id = context.root_id
+		local index = vnode.elem.index
+		local function get_event_tags()
+			return {
+				__relm_root = root_id,
+				[LISTEN_KEY] = index,
+			}
+		end
+		return props.manual_paint(vnode.elem, props, get_event_tags)
 	else
 		-- Handle children
 		local vchildren = vnode.children or EMPTY
