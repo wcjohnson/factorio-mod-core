@@ -143,6 +143,24 @@ local function filter(A, f)
 end
 lib.filter = filter
 
+---Split an array into two partitions based on a predicate function.
+---@generic T
+---@param A T[]
+---@param f fun(value: T, index: integer): boolean
+---@return T[] #an array containing all elements of `A` for which the predicate returned true.
+---@return T[] #an array containing all elements of `A` for which the predicate returned false.
+function lib.split(A, f)
+	local T, F = {}, {}
+	for i = 1, #A do
+		if f(A[i], i) then
+			T[#T + 1] = A[i]
+		else
+			F[#F + 1] = A[i]
+		end
+	end
+	return T, F
+end
+
 ---Map an array to an array. Non-nil results of the mapping function
 ---will be collected into a new result array.
 ---@generic I, O
