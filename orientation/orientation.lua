@@ -4,6 +4,7 @@ local pos_lib = require("lib.core.math.pos")
 local tlib = require("lib.core.table")
 
 local pos_get = pos_lib.pos_get
+local pos_add = pos_lib.pos_add
 local OC = oclass.OrientationClass
 local OrientationContext = oclass.OrientationContext
 local props = oclass.class_properties
@@ -382,6 +383,20 @@ function lib.is_direction_clockwise(dir_from, dir_to)
 	local cw_dir = math.abs((dir_to - dir_from) % 16)
 	local ccw_dir = math.abs((dir_from - dir_to) % 16)
 	return cw_dir <= ccw_dir
+end
+
+---Given a parent position and orientation, together with an offset in the parent's local space, get the offset in world space.
+---@param parent_pos MapPosition
+---@param parent_orientation Core.Orientation?
+---@param offset MapPosition
+---@return MapPosition transformed_offset
+function lib.transform_offset(parent_pos, parent_orientation, offset)
+	if parent_orientation then
+		offset = lib.transform_vector(parent_orientation, offset)
+	end
+	local offset_x, offset_y = pos_get(offset)
+	local parent_x, parent_y = pos_get(parent_pos)
+	return { parent_x + offset_x, parent_y + offset_y }
 end
 
 return lib
