@@ -1002,7 +1002,7 @@ local function paint_buttons(elem, primitive_props, get_event_tags)
 			button.tags = tag_base
 			button.locked = Boolean(button_info and button_info.locked)
 		else
-			button.tags = nil
+			button.tags = {}
 		end
 	end
 
