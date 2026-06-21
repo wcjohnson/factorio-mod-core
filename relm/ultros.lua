@@ -985,13 +985,19 @@ local function paint_buttons(elem, primitive_props, get_event_tags)
 		button.elem_value = button_info and button_info.signal
 		button.style = (button_info and button_info.button_style) or default_style
 		local lower = button.children[1]
-		lower.caption = button_info and button_info.count or ""
+		local count = button_info and button_info.count or ""
+		if type(count) == "number" then count = format_signal_count(count) end
+		lower.caption = count
 		if button_info and button_info.lower_color then
 			lower.style.font_color = button_info.lower_color
 		end
 		if uppers then
 			local upper = button.children[2]
-			upper.caption = button_info and button_info.upper or ""
+			local upper_count = button_info and button_info.upper or ""
+			if type(upper_count) == "number" then
+				upper_count = format_signal_count(upper_count)
+			end
+			upper.caption = upper_count
 			if button_info and button_info.upper_color then
 				upper.style.font_color = button_info.upper_color
 			end
@@ -1018,13 +1024,6 @@ local function paint_buttons(elem, primitive_props, get_event_tags)
 	for button_key, button_info in iter1, iter2, iter3 do
 		---@diagnostic disable-next-line: need-check-nil
 		local button = children[child_index]
-		local count = button_info.count
-		if type(count) == "number" then count = format_signal_count(count) end
-		local upper_count = button_info.upper
-		if type(upper_count) == "number" then
-			upper_count = format_signal_count(upper_count)
-		end
-
 		if not button then button = add_button(button_info.button_style) end
 		apply_button(button, button_info, button_key)
 		child_index = child_index + 1
