@@ -1228,7 +1228,7 @@ end
 ---enabling "pinning" functionality.
 ---@param player_index PlayerIndex
 function lib.use_player_opened_pinnable(player_index)
-	local player = player_index and game.get_player(player_index)
+	local player = game and player_index and game.get_player(player_index)
 	local pinned, _set_pinned = relm.use_state(false)
 
 	-- Set player.opened according to the pinned state
@@ -1257,7 +1257,7 @@ function lib.use_player_opened_pinnable(player_index)
 end
 
 function lib.use_player_opened(player_index)
-	local player = player_index and game.get_player(player_index)
+	local player = game and player_index and game.get_player(player_index)
 	relm.use_effect(true, function(handle)
 		local elt = relm.get_root_element_from_handle(handle)
 		if (not player) or not elt or not elt.valid then return end
