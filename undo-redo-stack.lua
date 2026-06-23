@@ -17,6 +17,7 @@ local lib = {}
 function lib.make_undo_stack_view(urs)
 	---@type Core.UndoRedoStackView
 	local view = {
+		-- This type mismatch is a Factorio doc bug.
 		get_item_count = function() return urs.get_undo_item_count() end,
 		get_item = function(index) return urs.get_undo_item(index) end,
 		get_tag = function(item_index, action_index, tag_name)
@@ -40,6 +41,7 @@ end
 function lib.make_redo_stack_view(urs)
 	---@type Core.UndoRedoStackView
 	local view = {
+		-- This type mismatch is a Factorio doc bug.
 		get_item_count = function() return urs.get_redo_item_count() end,
 		get_item = function(index) return urs.get_redo_item(index) end,
 		get_tag = function(item_index, action_index, tag_name)

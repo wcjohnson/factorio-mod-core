@@ -438,8 +438,8 @@ function lib.find_snap_point(
 		)
 		local offset, nudge =
 			find_global_grid_offset(w, h, snap_entity_pos, parity_x, parity_y)
-		local gl, gt, gr, gb =
-			get_absolute_grid_square(x, y, 2, 2, offset[1], offset[2])
+		local ox, oy = pos_get(offset)
+		local gl, gt, gr, gb = get_absolute_grid_square(x, y, 2, 2, ox, oy)
 		if debug_render_surface then
 			-- Debug: draw green box around computed absolute gridsquare
 			rendering.draw_rectangle({

@@ -1,5 +1,3 @@
----@diagnostic disable: inject-field
-
 -- Core event handling implementation. Loosely based on the stdlib event system.
 -- Implementation should be more performant, and has support for correct
 -- dynamic event binding as well as subtick event triggers.
@@ -18,7 +16,8 @@ local EMPTY = setmetatable({}, { __newindex = function() end })
 local REMOVE_BINDING = setmetatable({}, { __newindex = function() end })
 
 ---Name of a specific event. May be a positive integer representing a `defines.event`, a string representing a custom user event, or a negative integer representing a tick interval (e.g. -60 for once per second).
----@alias Core.EventName int|string|defines.events
+---@alias Core.EventName int|string
+-- XXX: EmmyLua porting headache requires removal of `defines.events` from the above alias.
 
 ---Opaque identifier for a dynamic binding.
 ---@alias Core.EventDynamicBindingId int64
@@ -92,6 +91,7 @@ local function meta_run_static_handlers(key)
 	end
 	return function(...)
 		for i = 1, #handlers do
+			---@diagnostic disable-next-line: need-check-nil
 			handlers[i](...)
 		end
 	end
@@ -111,6 +111,8 @@ local function make_event_callback(event_name, handlers)
 		for i = 1, #handlers do
 			handlers[i](...)
 		end
+		-- Diag disabled: approved storage injection
+		---@diagnostic disable-next-line: undefined-field
 		local dynamic_handlers = (storage._event or EMPTY)[event_name]
 		if dynamic_handlers then
 			local was_removed = false
@@ -125,6 +127,8 @@ local function make_event_callback(event_name, handlers)
 				end
 			end
 			if was_removed then
+				-- Diag disabled: approved storage injection
+				---@diagnostic disable-next-line: undefined-field
 				if not next(dynamic_handlers) then storage._event[event_name] = nil end
 			end
 		end
@@ -156,6 +160,8 @@ local function bind_tick(minus_dt)
 		handlers = {}
 		static_handlers[minus_dt] = handlers
 	end
+	-- EmmyLua wierdness
+	---@diagnostic disable-next-line: param-type-mismatch
 	script.on_nth_tick(-minus_dt, make_event_callback(minus_dt, handlers))
 end
 
@@ -188,13 +194,16 @@ event.REMOVE_BINDING = REMOVE_BINDING
 ---Unconditionally bind a handler to an event. This MUST be called at the top
 ---of the control phase and MUST NOT be called conditionally. Handlers may not
 ---be unbound.
----@param event_names Core.EventName|Core.EventName[] The event to bind to. May be a string for a custom event, a member of `defines.events`, or the return value of `event.nth_tick`. Multiple events may be given as an array.
+---@overload fun(event_names: Core.EventName, handler: fun(...), first?: boolean, filters?: table)
+---@overload fun(event_names: Core.EventName[], handler: fun(...), first?: boolean, filters?: table)
+---@overload fun(event_names: defines.events, handler: fun(...), first?: boolean, filters?: table)
+---@overload fun(event_names: defines.events[], handler: fun(...), first?: boolean, filters?: table)
+---@param event_names Core.EventName|(Core.EventName[]) The event to bind to. May be a string for a custom event, a member of `defines.events`, or the return value of `event.nth_tick`. Multiple events may be given as an array.
 ---@param handler fun(...) The handler function.
 ---@param first boolean? If true, the handler will be called before other handlers for the event. Use with care.
 ---@param filters? table Passed to `script.on_event` as the `filters` argument when binding to game events. NOTE: The first `filters` argument is the only one the game will see. Subsequent bindings will be against the same filters.
 function event.bind(event_names, handler, first, filters)
 	for _, event_name in tlib.iter(event_names) do
-		---@cast event_name Core.EventName
 		event_name = bind_any_event(event_name, filters)
 		add_static_handler(event_name, handler, first)
 	end
@@ -210,6 +219,8 @@ function event.raise(user_event_name, ...)
 			handlers[i](...)
 		end
 	end
+	-- Diag disabled: approved storage injection
+	---@diagnostic disable-next-line: undefined-field
 	local dynamic_handlers = (storage._event or EMPTY)[user_event_name]
 	if dynamic_handlers then
 		local was_removed = false
@@ -225,6 +236,8 @@ function event.raise(user_event_name, ...)
 		end
 		if was_removed then
 			if not next(dynamic_handlers) then
+				-- Diag disabled: approved storage injection
+				---@diagnostic disable-next-line: undefined-field
 				storage._event[user_event_name] = nil
 			end
 		end
@@ -253,16 +266,21 @@ function event.dynamic_bind(event_names, handler_name, handler_data)
 		error("unknown dynamic handler: " .. handler_name)
 	end
 
+	-- Diag disabled: approved storage injection
+	---@diagnostic disable-next-line: undefined-field
 	local id = storage._event_id + 1
+	---@diagnostic disable-next-line: inject-field
 	storage._event_id = id
 
 	for _, event_name in tlib.iter(event_names) do
-		---@cast event_name Core.EventName
 		if script_event_set[event_name] then
 			error("cannot dynamically bind to core script event: " .. event_name)
 		end
 		event_name = bind_any_event(event_name)
+		-- Diag disabled: approved storage injection
+		---@diagnostic disable-next-line: undefined-field
 		if not storage._event[event_name] then storage._event[event_name] = {} end
+		---@diagnostic disable-next-line: undefined-field
 		storage._event[event_name][id] = { event_name, handler_name, handler_data }
 	end
 
@@ -273,9 +291,13 @@ end
 ---@param binding_id Core.EventDynamicBindingId The binding ID returned from `event.dynamic_bind`.
 ---@return boolean unbound True if a binding was found and removed.
 function event.dynamic_unbind(binding_id)
+	-- Diag disabled: approved storage injection
+	---@diagnostic disable-next-line: undefined-field
 	for event_name, ev in pairs(storage._event) do
 		if ev[binding_id] then
 			ev[binding_id] = nil
+			-- Diag disabled: approved storage injection
+			---@diagnostic disable-next-line: undefined-field
 			if not next(ev) then storage._event[event_name] = nil end
 			return true
 		end
@@ -309,7 +331,11 @@ local INVISIBLE_LINE = {
 function event.dynamic_subtick_trigger(handler_name, event_name, handler_data)
 	local obj = rendering.draw_line(INVISIBLE_LINE)
 	local rn = script.register_on_object_destroyed(obj)
+	-- Diag disabled: approved storage injection
+	---@diagnostic disable-next-line: undefined-field
+	---@diagnostic disable-next-line: inject-field
 	if not storage._event_subtick then storage._event_subtick = {} end
+	---@diagnostic disable-next-line: undefined-field
 	storage._event_subtick[rn] = { event_name, handler_name, handler_data }
 	obj.destroy()
 end
@@ -320,8 +346,13 @@ end
 
 event.bind(defines.events.on_object_destroyed, function(ev)
 	local rn = ev.registration_number
+	-- Diag disabled: approved storage injection
+	---@diagnostic disable-next-line: undefined-field
 	local binding = (storage._event_subtick or EMPTY)[rn]
 	if not binding then return end
+
+	-- Diag disabled: approved storage injection
+	---@diagnostic disable-next-line: undefined-field
 	storage._event_subtick[rn] = nil
 	local handler = registered_dynamic_handlers[binding[2]]
 	if handler then handler(binding[1], binding[3]) end
@@ -334,26 +365,33 @@ event.bind(
 )
 
 event.bind("on_startup", function(reset_data)
+	---@diagnostic disable-next-line: undefined-field
 	-- TODO: warn if mods didn't clear dynamic binds before resetting
 	if storage._event and next(storage._event) then
 		strace.warn(
 			"Warning: dynamic event bindings exist at startup. You should clear dynamic bindings during shutdown to avoid lingering state."
 		)
 	end
+	---@diagnostic disable-next-line: undefined-field
 	if storage._event_subtick and next(storage._event_subtick) then
 		strace.error(
 			"ERROR: subtick event bindings exist at startup, this should be impossible."
 		)
 	end
 
+	---@diagnostic disable-next-line: inject-field
 	storage._event = {} --[[@as Core.EventStorage ]]
+	---@diagnostic disable-next-line: inject-field
 	storage._event_subtick = {}
+	---@diagnostic disable-next-line: inject-field
 	storage._event_id = 0
 end)
 
 event.bind("on_load", function()
+	---@diagnostic disable-next-line: undefined-field
 	if not storage._event then return end
 
+	---@diagnostic disable-next-line: undefined-field
 	-- Rebind all game events we were using.
 	for event_name in pairs(storage._event) do
 		bind_any_event(event_name)

@@ -63,7 +63,7 @@ end
 ---If a number is very close to an integer, return that integer. Else return
 ---the floor.
 ---@param x number The number to floor.
----@return number floored The floored value.
+---@return integer floored The floored value.
 local function floor_approx(x)
 	local top = ceil(x)
 	if abs(top - x) < 0.001 then

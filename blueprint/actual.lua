@@ -22,8 +22,11 @@ local function get_actual_blueprint(player, record, stack)
 	elseif stack then
 		if not stack.valid_for_read then return end
 		while stack and stack.is_blueprint_book do
-			stack =
-				stack.get_inventory(defines.inventory.item_main)[stack.active_index]
+			local main_inventory = stack.get_inventory(defines.inventory.item_main)
+			if not main_inventory then return end
+			stack = main_inventory[
+				stack.active_index --[[@as uint]]
+			]
 		end
 		if stack and stack.is_blueprint then return stack end
 	end

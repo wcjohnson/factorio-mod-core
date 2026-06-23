@@ -30,17 +30,31 @@ local function bbox_get(bbox)
 	else
 		lt, rb = bbox[1], bbox[2]
 	end
+	---@cast lt MapPosition
+	---@cast rb MapPosition
 	if lt.x then
 		if rb.x then
-			return lt.x, lt.y, rb.x, rb.y
+			local l = lt.x --[[@as number]]
+			local t = lt.y --[[@as number]]
+			local r = rb.x --[[@as number]]
+			return l, t, r, rb.y --[[@as number]]
 		else
-			return lt.x, lt.y, rb[1], rb[2]
+			local l = lt.x --[[@as number]]
+			local t = lt.y --[[@as number]]
+			local r = rb[1] --[[@as number]]
+			return l, t, r, rb[2] --[[@as number]]
 		end
 	else
 		if rb.x then
-			return lt[1], lt[2], rb.x, rb.y
+			local l = lt[1] --[[@as number]]
+			local t = lt[2] --[[@as number]]
+			local r = rb.x --[[@as number]]
+			return l, t, r, rb.y --[[@as number]]
 		else
-			return lt[1], lt[2], rb[1], rb[2]
+			local l = lt[1] --[[@as number]]
+			local t = lt[2] --[[@as number]]
+			local r = rb[1] --[[@as number]]
+			return l, t, r, rb[2] --[[@as number]]
 		end
 	end
 end
@@ -60,6 +74,8 @@ local function bbox_set(bbox, left, top, right, bottom)
 	else
 		lt, rb = bbox[1], bbox[2]
 	end
+	---@cast lt MapPosition
+	---@cast rb MapPosition
 	if lt.x then
 		if rb.x then
 			lt.x, lt.y, rb.x, rb.y = left, top, right, bottom
@@ -83,13 +99,22 @@ lib.bbox_set = bbox_set
 ---@param t? number
 ---@param r? number
 ---@param b? number
----@return BoundingBox #The new bbox.
+---@return [ [number, number], [number, number] ] #The new bbox.
 local function bbox_new(bbox_or_l, t, r, b)
 	if type(bbox_or_l) == "table" then
 		bbox_or_l, t, r, b = bbox_get(bbox_or_l)
 	end
 	if bbox_or_l then
-		return { { bbox_or_l, t }, { r, b } }
+		return {
+			{
+				bbox_or_l,
+				t --[[@as number]],
+			},
+			{
+				r --[[@as number]],
+				b --[[@as number]],
+			},
+		}
 	else
 		return { { 0, 0 }, { 0, 0 } }
 	end
@@ -286,13 +311,15 @@ lib.bbox_flip_vert = bbox_flip_vert
 ---@param pos_or_dx MapPosition|number
 ---@param dy? number
 local function bbox_translate(bbox, factor, pos_or_dx, dy)
-	local dx = 0
+	local dx = 0.0
 	if type(pos_or_dx) == "table" then
 		dx, dy = pos_get(pos_or_dx)
 	else
 		dx = pos_or_dx --[[@as number]]
 	end
 	local l, t, r, b = bbox_get(bbox)
+	---@cast dx number
+	---@cast dy number
 	dx = dx * factor
 	dy = dy * factor
 	return bbox_set(bbox, l + dx, t + dy, r + dx, b + dy)

@@ -405,7 +405,8 @@ lib.class_properties = {
 ---@param oclass Core.OrientationClass?
 ---@return Core.OrientationClass.Properties
 function lib.get_class_properties(oclass)
-	return lib.class_properties[oclass or ""] or zero
+	if not oclass then return zero end
+	return lib.class_properties[oclass] or zero
 end
 
 -- Precompute blueprint transforms for each orientation class
@@ -602,8 +603,7 @@ end
 ---@return Core.OrientationClass?
 local function get_dynamic_orientation_class_for_entity(entity)
 	if get_actual_type(entity) ~= "assembling-machine" then return nil end
-	local fluidbox = entity.fluidbox
-	if fluidbox and #fluidbox > 0 then
+	if entity.fluids_count > 0 then
 		return OrientationClass.D8_0_RF
 	else
 		return OrientationClass.D8_0_latent
@@ -641,6 +641,8 @@ end
 ---@param oclass Core.OrientationClass?
 function lib.stringify(oclass)
 	if not oclass then return "nil" end
+	-- False positive type error
+	---@diagnostic disable-next-line: undefined-field
 	return OrientationClass[oclass] or "InvalidOrientationClass"
 end
 

@@ -13,18 +13,23 @@ local dir_W = defines.direction.west
 local lib = {}
 
 ---Get the coordinates of a position.
----@param pos MapPosition
+---@param pos MapPosition | Vector | TilePosition
+---@return number x
+---@return number y
 local function pos_get(pos)
+	-- Weird Syntax here is because of a stylua bug
 	if pos.x then
-		return pos.x, pos.y
+		local p1 = pos.x --[[@as number]]
+		return p1, pos.y --[[@as number]]
 	else
-		return pos[1], pos[2]
+		local p1 = pos[1] --[[@as number]]
+		return p1, pos[2] --[[@as number]]
 	end
 end
 lib.pos_get = pos_get
 
 ---Set the coordinates of a position.
----@param pos MapPosition
+---@param pos MapPosition | Vector
 ---@param x number
 ---@param y number
 local function pos_set(pos, x, y)
@@ -52,7 +57,7 @@ lib.pos_len = pos_len
 ---@return MapPosition pos The mutated position.
 local function pos_scale(pos, factor)
 	local x, y = pos_get(pos)
-	return pos_set(pos, x * factor, y * factor)
+	return pos_set(pos, x * factor, y * factor) --[[@as MapPosition]]
 end
 lib.pos_scale = pos_scale
 
@@ -62,10 +67,10 @@ lib.pos_scale = pos_scale
 local function pos_normalize(pos)
 	local length = pos_len(pos)
 	if length == 0 then
-		return pos_set(pos, 0, 0)
+		return pos_set(pos, 0, 0) --[[@as MapPosition]]
 	else
 		local x, y = pos_get(pos)
-		return pos_set(pos, x / length, y / length)
+		return pos_set(pos, x / length, y / length) --[[@as MapPosition]]
 	end
 end
 lib.pos_normalize = pos_normalize
@@ -96,14 +101,17 @@ lib.pos_close = pos_close
 ---Create a new position, optionally cloning an existing one.
 ---@param pos_or_x? MapPosition|number
 ---@param y? number
----@return MapPosition #The new position.
+---@return [number, number] #The new position.
 local function pos_new(pos_or_x, y)
 	if pos_or_x then
 		if type(pos_or_x) == "table" then
 			local x0, y0 = pos_get(pos_or_x)
 			return { x0, y0 }
 		else
-			return { pos_or_x, y or 0 }
+			return {
+				pos_or_x --[[@as number]],
+				y or 0,
+			}
 		end
 	else
 		return { 0, 0 }
@@ -119,7 +127,7 @@ lib.pos_new = pos_new
 local function pos_add(pos1, factor, pos2)
 	local x1, y1 = pos_get(pos1)
 	local x2, y2 = pos_get(pos2)
-	return pos_set(pos1, x1 + x2 * factor, y1 + y2 * factor)
+	return pos_set(pos1, x1 + x2 * factor, y1 + y2 * factor) --[[@as MapPosition]]
 end
 lib.pos_add = pos_add
 
@@ -139,7 +147,7 @@ local function pos_move_ortho(pos, dir, amount)
 	elseif dir == dir_W then
 		x = x - amount
 	end
-	return pos_set(pos, x, y)
+	return pos_set(pos, x, y) --[[@as MapPosition]]
 end
 lib.pos_move_ortho = pos_move_ortho
 
@@ -175,13 +183,13 @@ local function pos_rotate_ortho(pos, origin, count)
 
 	if count == 1 then
 		-- 90 degrees counterclockwise
-		return pos_set(pos, ox + (y - oy), oy - (x - ox))
+		return pos_set(pos, ox + (y - oy), oy - (x - ox)) --[[@as MapPosition]]
 	elseif count == 2 then
 		-- 180 degrees counterclockwise
-		return pos_set(pos, ox - (x - ox), oy - (y - oy))
+		return pos_set(pos, ox - (x - ox), oy - (y - oy)) --[[@as MapPosition]]
 	elseif count == 3 then
 		-- 270 degrees counterclockwise (or 90 degrees clockwise)
-		return pos_set(pos, ox - (y - oy), oy + (x - ox))
+		return pos_set(pos, ox - (y - oy), oy + (x - ox)) --[[@as MapPosition]]
 	else
 		-- 0 degrees (no rotation)
 		return pos
@@ -195,7 +203,9 @@ lib.pos_rotate_ortho = pos_rotate_ortho
 --- @param to MapPosition
 --- @return defines.direction
 function lib.dir_from(from, to)
-	local d = deg(atan2(to.y - from.y, to.x - from.x))
+	local to_x, to_y = pos_get(to)
+	local from_x, from_y = pos_get(from)
+	local d = deg(atan2(to_y - from_y, to_x - from_x))
 	local direction = (d + 90) / 22.5
 	if direction < 0 then direction = direction + 16 end
 
@@ -208,7 +218,7 @@ end
 --- @param direction defines.direction
 --- @return defines.direction
 function lib.dir_opposite(direction)
-	return (direction + 8) % 16 --[[@as defines.direction]]
+	return ((direction + 8) % 16) --[[@as defines.direction]]
 end
 
 return lib

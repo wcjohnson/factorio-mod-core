@@ -38,15 +38,16 @@ end
 ---@param sprite data.Sprite
 ---@return data.RotatedSprite rotated_sprite
 function lib.sprite_to_rotated(sprite)
-	if sprite.layers then
-		for _, layer in pairs(sprite.layers) do
-			lib.sprite_to_rotated(layer)
+	local rotated_sprite = sprite --[[@as data.RotatedSprite]]
+	if rotated_sprite.layers then
+		for _, layer in pairs(rotated_sprite.layers) do
+			lib.sprite_to_rotated(layer --[[@as data.Sprite]])
 		end
 	else
-		sprite.direction_count = 1
+		rotated_sprite.direction_count = 1
 	end
 
-	return sprite
+	return rotated_sprite
 end
 
 return lib

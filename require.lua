@@ -24,6 +24,8 @@ end
 ---Returns the key in Lua's package.loaded table for the given module
 ---as described by the value of the `...` arg at the root of a module.
 function lib.package_key(...)
+	-- Type inference doesn't know this is a string.
+	---@diagnostic disable-next-line: undefined-field
 	return string.format("__%s__/%s.lua", script.mod_name, (...):gsub("%.", "/"))
 end
 

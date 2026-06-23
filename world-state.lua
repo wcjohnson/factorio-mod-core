@@ -76,9 +76,12 @@ function lib.parse_world_key(key)
 	local x, y, surface_index, name =
 		string.match(key, "^([^:]+):([^:]+):([^:]+):(.+)$")
 	return {
-		position = { x = tonumber(x), y = tonumber(y) },
-		surface_index = tonumber(surface_index),
-		name = name,
+		position = {
+			x = tonumber(x) --[[@as number]],
+			y = tonumber(y) --[[@as number]],
+		},
+		surface_index = tonumber(surface_index) --[[@as uint]],
+		name = name --[[@as string]],
 		key = key,
 	}
 end

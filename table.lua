@@ -13,6 +13,12 @@ local getmetatable = _G.getmetatable
 ---An empty table enforced via metamethod.
 local empty = setmetatable({}, { __newindex = function() end })
 lib.empty = empty
+lib.EMPTY = setmetatable({}, { __newindex = function() end })
+
+---An empty table that will crash if anyone tries to write to it.
+lib.EMPTY_STRICT = setmetatable({}, {
+	__newindex = function() error("Attempt to write to EMPTY_STRICT table", 2) end,
+})
 
 ---Shallowly compare two arrays using `==`
 ---@param A any[]
@@ -353,8 +359,14 @@ function lib.sorted_group_by(A, key)
 	local i = 1
 	while i <= #A do
 		local group = {}
-		local current = A[i][key]
-		while i <= #A and A[i][key] == current do
+		local current = A
+			[i]--[[@cast -?]]
+			[key]
+		while
+			i <= #A and A
+				[i]--[[@cast -?]]
+				[key] == current
+		do
 			group[#group + 1] = A[i]
 			i = i + 1
 		end
@@ -465,6 +477,8 @@ end
 ---@return integer
 function lib.iter(x)
 	if type(x) == "table" then
+		---EmmyLua bug: doesnt understand multi return value passthrough
+		---@diagnostic disable-next-line: missing-return-value
 		return ipairs(x)
 	else
 		return function(val, idx)
@@ -475,14 +489,6 @@ function lib.iter(x)
 			0
 	end
 end
-
----An empty table enforced via metatable.
-lib.EMPTY = setmetatable({}, { __newindex = function() end })
-
----An empty table that will crash if anyone tries to write to it.
-lib.EMPTY_STRICT = setmetatable({}, {
-	__newindex = function() error("Attempt to write to EMPTY_STRICT table", 2) end,
-})
 
 ---Given tables representing sets (with keys as elements and `true` as values),
 ---union them onto the first input set, mutating that set in place.

@@ -24,10 +24,7 @@ local bbox_set = bbox_lib.bbox_set
 local bbox_flip_horiz = bbox_lib.bbox_flip_horiz
 local bbox_flip_vert = bbox_lib.bbox_flip_vert
 
-local get_bp_relative_snapping = snap_lib.get_bp_relative_snapping
-local snap_to = snap_lib.snap_to
 local get_absolute_grid_square = snap_lib.get_absolute_grid_square
-local SnapType = snap_lib.SnapType
 
 local ZERO = { 0, 0 }
 

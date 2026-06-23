@@ -106,6 +106,7 @@ lib.Thread = Thread
 
 ---@param data Core.Thread.Storage
 local function recompute_workload(data, bucket, bucket_index)
+	---@type number
 	local workload = 0
 	for id in pairs(bucket) do
 		local thread = data.threads[id]
@@ -119,6 +120,7 @@ end
 ---@param data Core.Thread.Storage
 local function reschedule_all(data)
 	local buckets = { {} }
+	---@type number[]
 	local bucket_workloads = { 0 }
 	local current_bucket = 1
 	local max_workload = data.max_workload
@@ -127,8 +129,8 @@ local function reschedule_all(data)
 		-- Skip sleeping threads
 		if thread.wake_at then goto continue end
 		-- Add a new bucket if needed
-		local bucket = buckets[current_bucket]
-		local workload = bucket_workloads[current_bucket]
+		local bucket = buckets[current_bucket] --[[@as Core.Thread.IdSet]]
+		local workload = bucket_workloads[current_bucket] --[[@as number]]
 		local thread_workload = thread.workload or 0
 		local next_workload = workload + thread_workload
 		if
@@ -166,8 +168,8 @@ local function schedule(data, thread, use_current_bucket)
 	-- Try to fit thread into existing buckets
 	for i = 1, n_buckets do
 		local bucket_index = ((current_bucket + offset + i) % n_buckets) + 1
-		local bucket = buckets[bucket_index]
-		local workload = bucket_workloads[bucket_index]
+		local bucket = buckets[bucket_index] --[[@as Core.Thread.IdSet]]
+		local workload = bucket_workloads[bucket_index] --[[@as number]]
 		local next_workload = workload + thread_workload
 		local bucket_size = table_size(bucket)
 		if
@@ -186,7 +188,7 @@ end
 
 ---@param data Core.Thread.Storage
 ---@param id integer
----@param bucket Core.Thread.IdSet?
+---@param bucket Core.Thread.IdSet
 ---@param bucket_index integer
 local function unschedule(data, id, bucket, bucket_index)
 	bucket[id] = nil
@@ -355,8 +357,9 @@ function Thread:main() end
 ---@param id integer? The ID of the thread to get.
 ---@return Core.Thread? #The thread with the given ID, or `nil` if it does not exist.
 function lib.get_thread(id)
+	if not id then return nil end
 	local data = get_data()
-	return data and data.threads[id or ""]
+	return data and data.threads[id]
 end
 
 ---Get all thread IDs. Returns an empty table if no threads exist.

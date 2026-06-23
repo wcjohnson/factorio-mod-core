@@ -67,7 +67,7 @@ function lib.compose_logistic_filters(signals, counts, default_count)
 			local filter = {
 				value = {
 					type = signal.type or "item",
-					name = signal.name,
+					name = signal.name --[[@as string]],
 					quality = get_quality_name(signal.quality) or "normal",
 					comparator = "=",
 				},

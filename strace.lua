@@ -300,6 +300,8 @@ end
 storage._LOG_LEVEL = 0
 
 function lib.standard_log_handler(level, ...)
+	-- Authorized storage injection
+	---@diagnostic disable-next-line: undefined-field
 	local lv = (storage and storage._LOG_LEVEL) or 10
 	if level < lv then return end
 	local frame = 0

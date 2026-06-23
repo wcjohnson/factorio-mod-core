@@ -10,12 +10,18 @@ local BIG_INT = 9007199254740000
 
 ---@alias Core.CounterStorage { [string]: int64 }
 
+---@type Core.CounterStorage
+storage._counters = {}
+
 ---@class Core.Lib.Counters
 local lib = {}
 
 event.bind("on_startup", function()
 	-- We don't reset existing counters on startup to ensure uniqueness of
 	-- previously generated IDs across restarts.
+
+	-- Diag disabled: approved storage injection
+	---@diagnostic disable-next-line: undefined-field
 	if type(storage._counters) ~= "table" then
 		storage._counters = {} --[[@as Core.CounterStorage]]
 	end
@@ -25,7 +31,10 @@ end)
 ---@param key string The key of the counter to increment.
 ---@return integer #The next value of the counter
 function lib.next(key)
+	-- Diag disabled: approved storage injection
+	---@diagnostic disable-next-line: undefined-field
 	local counters = storage._counters
+
 	if not counters then
 		-- We have to crash here for reasons of determinism.
 		error(
@@ -42,7 +51,10 @@ end
 ---@param key string The key of the counter to examine.
 ---@return integer? #The current value of the counter or `nil` if it has not been set.
 function lib.peek(key)
+	-- Diag disabled: approved storage injection
+	---@diagnostic disable-next-line: undefined-field
 	local counters = storage._counters
+
 	if not counters then
 		-- We have to crash here for reasons of determinism.
 		error(

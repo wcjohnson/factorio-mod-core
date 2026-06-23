@@ -51,18 +51,22 @@ end
 ---@param dx number
 ---@param dy number
 local function offset(target, dx, dy)
-	local base_offset_x, base_offset_y = 0, 0
+	local base_offset_x, base_offset_y = 0.0, 0.0
 	if target.offset then
-		base_offset_x, base_offset_y = pos.pos_get(target.offset)
+		---@diagnostic disable-next-line: assign-type-mismatch
+		base_offset_x, base_offset_y =
+			pos.pos_get(target.offset --[[@as MapPosition]])
 	end
 	if target.entity then
 		return {
 			entity = target.entity,
+			---@diagnostic disable-next-line: need-check-nil
 			offset = { base_offset_x + dx, base_offset_y + dy },
 		}
 	else
 		local x0, y0 = pos.pos_get(target.position)
 		return {
+			---@diagnostic disable-next-line: need-check-nil
 			position = { x0 + dx, y0 + dy },
 		}
 	end

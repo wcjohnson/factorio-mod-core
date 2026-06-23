@@ -64,9 +64,13 @@ event.bind(
 	---@param reset_data Core.ResetData
 	function(reset_data)
 		log.info("Scheduler: resetting state")
+		-- Authorized storage injection
+		---@diagnostic disable-next-line: undefined-field
 		if storage._sched and storage._sched.at and next(storage._sched.at) then
 			log.warn(
 				"Scheduler:",
+				-- Authorized storage injection
+				---@diagnostic disable-next-line: undefined-field
 				table_size(storage._sched.at),
 				"outstanding tasks from previous state will NOT be processed."
 			)
@@ -80,6 +84,8 @@ event.bind(
 )
 
 local function do_at(tick, task_id)
+	-- Authorized storage injection
+	---@diagnostic disable-next-line: undefined-field
 	local state = storage._sched --[[@as Scheduler.Storage]]
 	local task_set = state.at[tick]
 	if not task_set then
@@ -96,6 +102,8 @@ if not _G.__RECOVERY_MODE__ then
 		event.nth_tick(1),
 		---@param tick_data NthTickEventData
 		function(tick_data)
+			-- Authorized storage injection
+			---@diagnostic disable-next-line: undefined-field
 			local state = storage._sched --[[@as Scheduler.Storage]]
 			if not state then return end
 			local tick_n = tick_data.tick
@@ -143,6 +151,8 @@ local function dont_at(state, tick, task_id)
 end
 
 local function at(tick, handler_name, data)
+	-- Authorized storage injection
+	---@diagnostic disable-next-line: undefined-field
 	local state = storage._sched --[[@as Scheduler.Storage]]
 	local task_id = counters.next("_task")
 	local task = {
@@ -159,6 +169,8 @@ local function at(tick, handler_name, data)
 end
 
 local function every(first_tick, period, handler_name, data)
+	-- Authorized storage injection
+	---@diagnostic disable-next-line: undefined-field
 	local state = storage._sched --[[@as Scheduler.Storage]]
 	local task_id = counters.next("_task")
 	local task = {
@@ -262,6 +274,8 @@ end
 ---@param task_id Scheduler.TaskId
 ---@return Scheduler.Task? #The task, or `nil` if it doesn't exist.
 local function get(task_id)
+	-- Authorized storage injection
+	---@diagnostic disable-next-line: undefined-field
 	local state = storage._sched --[[@as Scheduler.Storage]]
 	if not state then return nil end
 	return state.tasks[task_id]
@@ -281,6 +295,8 @@ end
 ---@return boolean `true` if a task record was deleted
 function lib.stop(task_id)
 	if not task_id then return false end
+	-- Authorized storage injection
+	---@diagnostic disable-next-line: undefined-field
 	local state = storage._sched --[[@as Scheduler.Storage]]
 	local task = state.tasks[task_id] --[[@as Scheduler.RecurringTask]]
 	if not task then return false end
