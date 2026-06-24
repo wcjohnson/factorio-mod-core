@@ -64,7 +64,7 @@ local function offset(target, dx, dy)
 			offset = { base_offset_x + dx, base_offset_y + dy },
 		}
 	else
-		local x0, y0 = pos.pos_get(target.position)
+		local x0, y0 = pos.pos_get(target.position --[[@as MapPosition]])
 		return {
 			---@diagnostic disable-next-line: need-check-nil
 			position = { x0 + dx, y0 + dy },

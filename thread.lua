@@ -60,12 +60,15 @@ event.bind(
 	function(reset_data)
 		---TODO: warn about unkilled threads from previous state?
 		if
+			-- Authorized storage injections.
+			---@diagnostic disable-next-line: undefined-field
 			storage._thread
 			and storage._thread.threads
 			and next(storage._thread.threads)
 		then
 			log.warn(
 				"Thread scheduler:",
+				---@diagnostic disable-next-line: undefined-field
 				table_size(storage._thread.threads),
 				"outstanding threads from previous state will be killed."
 			)

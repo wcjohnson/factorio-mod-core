@@ -72,7 +72,8 @@ end
 function lib.get_blueprint_bbox(bp_entities, entity_bounding_boxes)
 	local snap_index = nil
 
-	local e1x, e1y = pos_get(bp_entities[1].position)
+	local e1 = bp_entities[1] --[[@as BlueprintEntity]]
+	local e1x, e1y = pos_get(e1.position)
 	---@type BoundingBox
 	local bpspace_bbox = { { e1x, e1y }, { e1x, e1y } }
 	---@type BoundingBox
