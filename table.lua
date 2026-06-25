@@ -61,9 +61,9 @@ end
 
 ---Shallowly copies each given table into `dest`, returning `dest`.
 ---@generic K, V
----@param dest table<K, V>
----@param ... (table<K, V>|nil)[]
----@return table<K, V>
+---@param dest {[K]: V}
+---@param ... {[K]: V} | nil
+---@return {[K]: V} dest
 local function assign(dest, ...)
 	local n = select("#", ...)
 	if n == 0 then return dest end
@@ -238,9 +238,9 @@ end
 ---a key-value pair, or `nil` to omit the entry. The new table will be
 ---gathered from the returned pairs.
 ---@generic K, V, L, W
----@param T table<K, V>
+---@param T {[K]: V}
 ---@param f fun(key: K, value: V): L?, W?
----@return table<L, W>
+---@return {[L]: W}
 function lib.t_map_t(T, f)
 	local U = {}
 	for k, v in pairs(T) do
@@ -252,7 +252,7 @@ end
 
 ---Reduce a table to a single value by applying a reducer function.
 ---@generic K, V, A
----@param T table<K, V>
+---@param T {[K]: V}
 ---@param initial A The initial accumulator value.
 ---@param reducer fun(acc: A, key: K, value: V): A The reducer function.
 ---@return A acc The final accumulated value.
@@ -507,10 +507,10 @@ end
 
 ---An iterator over table entries filtered by a predicate function.
 ---@generic K, V
----@param T table<K, V>
+---@param T {[K]: V}
 ---@param predicate fun(key: K, value: V): boolean?
----@return fun(t: table<K, V>, k: K?): K?, V?
----@return table<K, V>
+---@return fun(t: {[K]: V}, k: K?): K?, V?
+---@return {[K]: V}
 ---@return K?
 function lib.filtered_pairs(T, predicate)
 	local function iter(t, k)

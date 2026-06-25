@@ -16,8 +16,7 @@ local EMPTY = setmetatable({}, { __newindex = function() end })
 local REMOVE_BINDING = setmetatable({}, { __newindex = function() end })
 
 ---Name of a specific event. May be a positive integer representing a `defines.event`, a string representing a custom user event, or a negative integer representing a tick interval (e.g. -60 for once per second).
----@alias Core.EventName int|string
--- XXX: EmmyLua porting headache requires removal of `defines.events` from the above alias.
+---@alias Core.EventName int|string|defines.events
 
 ---Opaque identifier for a dynamic binding.
 ---@alias Core.EventDynamicBindingId int64

@@ -7,7 +7,7 @@ local registered_metatables = {}
 ---Create a class metatable. If `name` is given, registers it with Factorio
 ---for serialization.
 ---@param name? string
----@param ... table[] #Mixins
+---@param ... table #Mixins
 function lib.class(name, ...)
 	local mt = {}
 	for i = 1, select("#", ...) do
