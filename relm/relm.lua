@@ -838,7 +838,9 @@ local function vpaint_context_create(context, props)
 		end
 		new_elem = elem.add(addable_props)
 		-- Entities for entity-preview can only be set after creation.
-		if props.entity then new_elem.entity = props.entity end
+		if props.entity and props.entity.valid then
+			new_elem.entity = props.entity
+		end
 		-- Inherit __relm_root
 		local tags = new_elem.tags
 		tags["__relm_root"] = context.root_id
@@ -1024,7 +1026,16 @@ local function vpaint(vnode, context, same)
 		if STYLE_KEYS[key] then
 			elem.style[key] = value
 		elseif APPLICABLE_KEYS[key] then
-			elem[key] = value
+			if key == "entity" then
+				-- Entities for entity-preview have to be validated due to
+				-- asynchrony.
+				if value.valid then elem.entity = value end
+			else
+				-- Proper typing is too complex here. We know it's an applicable key
+				-- so just assume the type is right.
+				---@diagnostic disable-next-line: assign-type-mismatch
+				elem[key] = value
+			end
 		end
 	end
 	-- Remove nil'd keys if the elem didn't change
