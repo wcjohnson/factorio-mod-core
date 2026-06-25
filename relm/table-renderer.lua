@@ -60,6 +60,7 @@ function lib.render_table(
 	else
 		primdef = { horizontally_stretchable = true }
 	end
+	---@cast primdef table
 
 	local children = {}
 	if renderer_driven then

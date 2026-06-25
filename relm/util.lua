@@ -97,7 +97,6 @@ end
 function lib.use_event_handler(events, handler)
 	local _, closure = relm.use_closure(handler)
 	relm.use_effect(events, function(me, _events)
-		---@cast _events Core.EventName|Core.EventName[]
 		local ids = {}
 		for _, ev in tlib.iter(_events) do
 			ids[#ids + 1] =

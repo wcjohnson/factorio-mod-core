@@ -600,6 +600,7 @@ styles.relm_raised_frame = {
 			position = { 68, 0 },
 			corner_size = 8,
 		},
+		---@diagnostic disable-next-line: need-check-nil
 		shadow = styles.train_with_minimap_frame.graphical_set.shadow,
 	},
 	padding = 4,
