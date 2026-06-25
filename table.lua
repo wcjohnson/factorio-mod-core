@@ -222,7 +222,7 @@ end
 ---Map a table into an array. Non-nil results of the mapping function
 ---will be collected into a new result array.
 ---@generic K, V, O
----@param T table<K, V>
+---@param T {[K] : V}
 ---@param f fun(value: V, key: K): O?
 ---@return O[]
 function lib.t_map_a(T, f)
