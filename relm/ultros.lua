@@ -50,7 +50,8 @@ end
 ---Return `then_node` if `cond` is true, otherwise return an empty table. Useful for
 ---conditional Relm rendering.
 ---@param cond any
----@param then_node Relm.Children
+---@param then_node Relm.MaybeNode
+---@return Relm.MaybeNode
 function lib.If(cond, then_node)
 	if cond then
 		return then_node
@@ -61,20 +62,22 @@ end
 
 ---Return `then_node` if `cond` is true, otherwise return `else_node`.
 ---@param cond any
----@param then_node Relm.Children
----@param else_node Relm.Children?
+---@param then_node Relm.MaybeNode
+---@param else_node Relm.MaybeNode?
+---@return Relm.MaybeNode
 function lib.IfElse(cond, then_node, else_node)
 	if cond then
 		return then_node
 	else
-		return else_node
+		return else_node or empty
 	end
 end
 
 ---Call `fn` if `cond` is truthy, otherwise return an empty table. Useful for
 ---conditional Relm rendering.
 ---@param cond any
----@param fn fun(...): Relm.Children
+---@param fn fun(...): Relm.MaybeNode
+---@return Relm.MaybeNode
 function lib.CallIf(cond, fn, ...)
 	if cond then
 		return fn(...)
@@ -149,9 +152,9 @@ end
 
 ---Shallowly copies `src` into `dest`, returning `dest`.
 ---@generic K, V
----@param dest table<K, V>
----@param src table<K, V>?
----@return table<K, V>
+---@param dest {[K]: V}
+---@param src {[K]: V}?
+---@return {[K]: V}
 function lib.assign(dest, src)
 	if not src then return dest end
 	for k, v in pairs(src) do
@@ -188,7 +191,7 @@ end
 
 local function va_primitive(...) return ... end
 
----@alias Ultros.VarargNodeFactory fun(props_or_children: Relm.Props | Relm.Children, children?: Relm.Children): Relm.Node
+---@alias Ultros.VarargNodeFactory fun(props_or_children: Relm.Props | Relm.MaybeNode[], children?: Relm.MaybeNode[]): Relm.Node
 
 ---Creates a factory for customized nodes. If only prop changes are
 ---needed, you can use this rather than wrapping in virtual nodes.

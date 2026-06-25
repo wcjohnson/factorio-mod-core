@@ -199,7 +199,7 @@ end
 
 ---Run a function for each element in a table.
 ---@generic K, V
----@param T table<K, V>
+---@param T { [K]: V }
 ---@param f fun(value: V, key: K)
 function lib.for_each(T, f)
 	for k, v in pairs(T) do
@@ -209,7 +209,7 @@ end
 
 ---Find the first entry in a table matching the given predicate.
 ---@generic K, V
----@param T table<K, V>
+---@param T {[K]: V}
 ---@param f fun(value: V, key: K): boolean?
 ---@return V? value The value of the first matching entry, or `nil` if none was found
 ---@return K? key The key of the first matching entry, or `nil` if none was found
@@ -250,6 +250,22 @@ function lib.t_map_t(T, f)
 	return U
 end
 
+---Map an array into a table. The mapping function should return
+---a key-value pair, or `nil` to omit the entry. The new table will be
+---gathered from the returned pairs.
+---@generic T, K, V
+---@param A T[]
+---@param f fun(entry: T, index: integer): K?, V?
+---@return {[K]: V}
+function lib.a_map_t(A, f)
+	local T = {}
+	for i = 1, #A do
+		local k2, v2 = f(A[i], i)
+		if k2 ~= nil then T[k2] = v2 end
+	end
+	return T
+end
+
 ---Reduce a table to a single value by applying a reducer function.
 ---@generic K, V, A
 ---@param T {[K]: V}
@@ -284,7 +300,7 @@ end
 
 ---Return an array containing the keys of the given table.
 ---@generic K
----@param T table<K, any>
+---@param T { [K]: any }
 ---@return K[]
 function lib.keys(T)
 	local A = {}
@@ -441,9 +457,9 @@ end
 
 ---Pairwise add a*T2 to T1, in-place.
 ---@generic K, V
----@param T1 table<K, V>
+---@param T1 {[K]: V}
 ---@param a V
----@param T2 table<K, V>
+---@param T2 {[K]: V}
 function lib.vector_add(T1, a, T2)
 	for k, v in pairs(T2) do
 		T1[k] = (T1[k] or 0) + a * v
@@ -454,9 +470,9 @@ end
 ---`a * T1 + b * T2`
 ---@generic K, V
 ---@param a V
----@param T1 table<K, V>
+---@param T1 {[K]: V}
 ---@param b V
----@param T2 table<K, V>
+---@param T2 {[K]: V}
 function lib.vector_sum(a, T1, b, T2)
 	local result = {}
 	for k, v in pairs(T1) do

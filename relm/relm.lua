@@ -214,6 +214,8 @@ local __EVENT_SINK__ = nil
 ---@field public state? Relm.Element.StateDefinition If given, determines the initial state from the element's initial props. (This is NOT required to use state, only if you want a non-`nil` initial state)
 ---@field public query? Relm.Element.QueryHandlerDefinition Defines the query handler for elements of this type. Query handlers MUST be pure functions of state, props, and other queries. They MUST NOT cause side effects!
 
+---@alias Relm.MaybeNode Relm.Node|{}
+
 ---@alias Relm.RootId int
 
 ---@alias Relm.Value boolean|int|number|string
@@ -226,11 +228,11 @@ local __EVENT_SINK__ = nil
 
 ---@alias Relm.StateValue string|number|int|boolean|nil
 
----@alias Relm.State Relm.StateValue|table<string|int, Relm.State>
+---@alias Relm.State Relm.StateValue | {[string|int]: Relm.State}
 
 ---@alias Relm.Children Relm.Node|Relm.Node[]|nil
 
----@alias Relm.RenderFn fun(props: Relm.Props): Relm.Children
+---@alias Relm.RenderFn fun(props: Relm.Props): Relm.Children | Relm.Children[]
 
 ---@alias Relm.QueryResponse string|number|int|boolean|table|nil
 
@@ -242,7 +244,7 @@ local __EVENT_SINK__ = nil
 
 ---@alias Relm.MessagePayload {key: string, propagation_mode: "bubble"|"broadcast"|"unicast", [any]:any}
 
----@alias Relm.Element.RenderDefinition fun(props: Relm.Props, state?: Relm.State): Relm.Children
+---@alias Relm.Element.RenderDefinition fun(props: Relm.Props, state?: Relm.State): Relm.Children|Relm.Children[]
 
 ---@alias Relm.Element.MessageHandlerDefinition fun(me: Relm.Handle, payload: Relm.MessagePayload, props: Relm.Props, state?: Relm.State): boolean
 
@@ -250,7 +252,7 @@ local __EVENT_SINK__ = nil
 
 ---@alias Relm.Element.StateDefinition fun(initial_props: Relm.Props): Relm.State
 
----@alias Relm.NodeFactory fun(props?: Relm.Props, children?: Relm.Node[]): Relm.Children
+---@alias Relm.NodeFactory fun(props?: Relm.Props, children?: Relm.MaybeNode[]): Relm.Node
 
 ---@alias Relm.Element.QueryHandlerDefinition fun(me: Relm.Handle, payload: Relm.MessagePayload, props: Relm.Props, state?: Relm.State): boolean, Relm.QueryResponse?, Relm.QueryTag?
 
@@ -1995,7 +1997,6 @@ end
 
 ---A primitive element whose props are passed directly to Factorio GUI
 ---for rendering.
----@type fun(props: Relm.PrimitiveDefinition, children?: Relm.Node[]): Relm.Node
 lib.Primitive = lib.define(
 	"Primitive",
 	function(props) return props.children end

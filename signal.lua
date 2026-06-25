@@ -10,6 +10,9 @@ local EMPTY = tlib.EMPTY
 
 local lib = {}
 
+---@class NamedSignalID: SignalID
+---@field public name string The name of the signal.
+
 ---Get the `string` quality name from a `QualityID` value.
 ---@param quality_id QualityID?
 ---@return string?
