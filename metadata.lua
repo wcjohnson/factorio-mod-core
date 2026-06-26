@@ -4,6 +4,28 @@
 
 local lib = {}
 
+---Prototype-types that can use mirroring bit in their orientation.
+---Note that `use_mirroring` has to be checked in addition to this to
+---determine if a specific prototype-name uses mirroring.
+---@type {[string]: true}
+local mirroring_possible_types = {
+	["assembling-machine"] = true,
+	["furnace"] = true,
+	["rocket-silo"] = true,
+	["inserter"] = true,
+	["mining-drill"] = true,
+}
+lib.mirroring_possible_types = mirroring_possible_types
+
+---Prototype-types that have "two-direction-only" fields in their type.
+---@type {[string]: true}
+local two_direction_only_types = {
+	["storage-tank"] = true,
+	["fusion-reactor"] = true,
+	["generator"] = true,
+}
+lib.two_direction_only_types = two_direction_only_types
+
 ---Prototype-types that can connect to the circuit network
 ---@type {[string]: true}
 local circuit_network_types = {
@@ -31,6 +53,8 @@ local circuit_network_types = {
 	["logistic-container"] = true,
 	["mining-drill"] = true,
 	["offshore-pump"] = true,
+	["pipe"] = true,
+	["pipe-to-ground"] = true,
 	["power-switch"] = true,
 	["programmable-speaker"] = true,
 	["proxy-container"] = true,
@@ -49,6 +73,7 @@ local circuit_network_types = {
 	["transport-belt"] = true,
 	["turret"] = true,
 }
+lib.circuit_network_types = circuit_network_types
 
 ---Determine if a prototype-type can connect to the circuit network.
 ---@param ty string

@@ -3,6 +3,8 @@
 -- rotation and flipping.
 
 local dihedral = require("lib.core.math.dihedral")
+local metadata = require("lib.core.metadata")
+
 local dih_encode = dihedral.encode
 local dih_decode = dihedral.decode
 local dih_product = dihedral.product
@@ -49,6 +51,7 @@ local OrientationClass = {
 	"D8_2_latent",
 	"D8_3_latent",
 	"d16_0_rf",
+	"d8_0_latent",
 
 	---Unknown or unregistered entities that can't be classified.
 	---Will be treated as OC_0.
@@ -133,6 +136,10 @@ local OrientationClass = {
 	---8-directional, sane transforms in hand, fixed when placed
 	---[`railgun-turret`]
 	["d16_0_rf"] = 24,
+
+	---NESW, no mirroring, latent orientation. Unflippable crafting machines
+	---with fluid boxes disabled.
+	["d8_0_latent"] = 25,
 }
 lib.OrientationClass = OrientationClass
 
@@ -400,6 +407,14 @@ lib.class_properties = {
 		H_blueprint = dih_encode(8, 0, 1),
 		V_blueprint = dih_encode(8, 4, 1),
 	},
+	[OrientationClass.d8_0_latent] = {
+		dihedral_r_order = 4,
+		can_mirror = false,
+		R_blueprint = D8_r,
+		Rinv_blueprint = D8_rinv,
+		H_blueprint = D8_s,
+		V_blueprint = dih_product(D8_r2, D8_s),
+	},
 }
 
 ---@param oclass Core.OrientationClass?
@@ -560,6 +575,7 @@ local static_by_name = {
 	-- AMs with always-on fluidboxes
 	["chemical-plant"] = OrientationClass.D8_0_RF,
 	["oil-refinery"] = OrientationClass.D8_0_RF,
+	["storage-tank"] = OrientationClass.D2_1_RF,
 }
 
 ---If a prototype name has a statically determined orientation class, return it.
@@ -600,13 +616,50 @@ end
 ---`nil` if the entity isn't known to have a dynamic class or the class
 ---can't be determined.
 ---@param entity LuaEntity A *valid* entity.
+---@param prototype_name string The entity's prototype name.
+---@param prototype_type string The entity's prototype type.
 ---@return Core.OrientationClass?
-local function get_dynamic_orientation_class_for_entity(entity)
-	if get_actual_type(entity) ~= "assembling-machine" then return nil end
-	if entity.fluids_count > 0 then
-		return OrientationClass.D8_0_RF
-	else
-		return OrientationClass.D8_0_latent
+local function get_dynamic_orientation_class_for_entity(
+	entity,
+	prototype_name,
+	prototype_type
+)
+	if metadata.mirroring_possible_types[prototype_type] then
+		-- Mirrorables
+		local prototype = prototypes.entity[prototype_name]
+		if prototype.use_mirroring then
+			if prototype.fluid_boxes_off_when_no_fluid_recipe then
+				if entity.fluids_count == 0 then
+					return OrientationClass.D8_0_latent
+				else
+					return OrientationClass.D8_0_RF
+				end
+			else
+				return OrientationClass.D8_0_RF
+			end
+		else
+			if prototype.fluid_boxes_off_when_no_fluid_recipe then
+				if entity.fluids_count == 0 then
+					return OrientationClass.d8_0_latent
+				else
+					return OrientationClass.d8_0_RF
+				end
+			else
+				return OrientationClass.d8_0_latent
+			end
+		end
+	elseif metadata.two_direction_only_types[prototype_type] then
+		-- Possible bidirectional entities
+		local prototype = prototypes.entity[prototype_name]
+		if prototype.two_direction_only then
+			-- Weird rotation cases.
+			if prototype_name == "storage-tank" then
+				return OrientationClass.D2_1_RF
+			end
+			return OrientationClass.D2_R
+		else
+			return OrientationClass.d8_0_RF
+		end
 	end
 end
 lib.get_dynamic_orientation_class_for_entity =
@@ -617,10 +670,15 @@ lib.get_dynamic_orientation_class_for_entity =
 ---@return Core.OrientationClass
 function lib.get_orientation_class_for_entity(entity)
 	if not entity or not entity.valid then return OrientationClass.Unknown end
-	return get_dynamic_orientation_class_for_entity(entity)
-		or get_static_orientation_class_for_name(get_actual_name(entity))
-		or get_static_orientation_class_for_type(get_actual_type(entity))
-		or OrientationClass.Unknown
+	local prototype_name = get_actual_name(entity)
+	local prototype_type = get_actual_type(entity)
+	return get_dynamic_orientation_class_for_entity(
+		entity,
+		prototype_name,
+		prototype_type
+	) or get_static_orientation_class_for_name(prototype_name) or get_static_orientation_class_for_type(
+		prototype_type
+	) or OrientationClass.Unknown
 end
 
 ---Get the orientation class for an entity only by its prototype name.
