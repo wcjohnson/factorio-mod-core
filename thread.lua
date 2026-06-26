@@ -1,10 +1,6 @@
----@diagnostic disable: inject-field
-
 --------------------------------------------------------------------------------
 -- Green threading/coroutine library for Factorio
 --------------------------------------------------------------------------------
-
-require("lib.core.require").require_guard("lib.core.thread")
 
 local class = require("lib.core.class").class
 local counters = require("lib.core.counters")
