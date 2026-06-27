@@ -187,7 +187,7 @@ local STYLE_KEYS = {
 ---@field public raise fun(event_name: string, ...: any): nil
 
 ---@type Relm.EventSink
-local __EVENT_SINK__ = nil
+local __EVENT_SINK__
 
 ---The primary output of `render` functions, representing nodes in the virtual
 ---tree.
@@ -292,6 +292,7 @@ local registry = {}
 ---@field public index? uint Index in parent node
 ---@field public parent? Relm.Internal.VNode Parent of this node.
 ---@field public root_id Relm.RootId Contains the root id of the vtree containing this node.
+---@field [uint] any Hook state vectors.
 
 ---@class (exact) Relm.Internal.PaintContext
 ---@field index uint? Current real child being examined. `nil` if rendering a root.
@@ -579,15 +580,18 @@ local function vapply_children(vnode, render_children)
 	for i = 1, #render_children do
 		local rchild = render_children[i]
 		if rchild and rchild.type then
+			---@type Relm.Internal.VNode?
 			local vchild = vchildren[vindex]
 			if not vchild then
 				---@diagnostic disable-next-line: missing-fields
-				vchildren[vindex] = {}
+				vchildren[vindex] = {} --[[@as Relm.Internal.VNode]]
 				vchild = vchildren[vindex]
 			end
+			---@cast vchild Relm.Internal.VNode
 			vchild.parent = vnode
 			vchild.root_id = vnode.root_id
 			vchild.index = vindex
+			---@diagnostic disable-next-line: need-check-nil
 			vapply(vchild, rchild)
 			vindex = vindex + 1
 		end
@@ -725,6 +729,7 @@ local function vhydrate_children(vnode, render_children)
 		local rchild = render_children[i]
 		local vchild = vchildren[vindex]
 		if rchild and next(rchild) and vchild then
+			---@diagnostic disable-next-line: need-check-nil
 			vhydrate(vchild, render_children[i])
 			vindex = vindex + 1
 		end
@@ -838,6 +843,8 @@ local function vpaint_context_create(context, props)
 		else
 			addable_props.index = context.index
 		end
+
+		-- XXX: TYPES: FMTK LuaGuiElement add_param bug
 		new_elem = elem.add(addable_props)
 		-- Entities for entity-preview can only be set after creation.
 		if props.entity and props.entity.valid then
@@ -1423,11 +1430,13 @@ end
 ---@param resent boolean?
 local function vmsg_bubble(vnode, payload, resent)
 	payload.propagation_mode = "bubble"
+	---@diagnostic disable-next-line: assign-type-mismatch
 	if resent == true then vnode = vnode.parent end
 	while vnode and vnode.type do
 		local result =
 			vimpl_msg_or_query(vnode, payload, "message", "message_handler")
 		if result then return end
+		---@diagnostic disable-next-line: assign-type-mismatch
 		vnode = vnode.parent
 	end
 end
@@ -2199,7 +2208,9 @@ end
 ---@param ... any Arguments to pass to the closure.
 ---@return any result The return value of the closure, if it exists.
 function lib.invoke_closure(handle, closure_ref, ...)
-	local hooks = vhooks_transient[handle]
+	local hooks = vhooks_transient[
+		handle --[[@as Relm.Internal.VNode]]
+	]
 	if not hooks then return end
 	local closure = hooks[closure_ref]
 	if type(closure) == "function" then return closure(...) end

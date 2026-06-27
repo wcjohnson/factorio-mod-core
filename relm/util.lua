@@ -96,10 +96,13 @@ end
 ---@param handler fun(me: Relm.Handle, event: Core.EventName, ...: any) Handler function. Receives a handle to the component, the Core Events event name, as well as any arguments dispatched with the event.
 function lib.use_event_handler(events, handler)
 	local _, closure = relm.use_closure(handler)
+	-- These are OK: event names are encodable as serializable str/ints.
+	---@diagnostic disable-next-line: param-type-mismatch
 	relm.use_effect(events, function(me, _events)
 		local ids = {}
 		for _, ev in tlib.iter(_events) do
 			ids[#ids + 1] =
+				---@diagnostic disable-next-line: param-type-mismatch
 				event.dynamic_bind(ev, "relm_closure", { me, closure, ev })
 		end
 		return ids

@@ -102,6 +102,8 @@ function lib.get_custom_geometry(prototype_type, prototype_name, direction)
 		geometry = custom_geometry_by_name[prototype_name or ""]
 		if not geometry then return end
 	end
+	-- EmmyLua nonsense
+	---@diagnostic disable-next-line: undefined-field
 	return geometry[direction or 0] or geometry[0]
 end
 

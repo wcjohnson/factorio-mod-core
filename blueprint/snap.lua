@@ -321,9 +321,13 @@ local function find_global_grid_offset(
 			elseif box_parity_y == 0 and w_mod_4 == 3 then
 				case = 2
 			end
+			---@diagnostic disable-next-line: undefined-field
 			if case and offsets then offset = offsets[case] end
+			---@diagnostic disable-next-line: undefined-field
 			if case and nudges then nudge = nudges[case] end
+			---@diagnostic disable-next-line: need-check-nil
 			local grid_offset_x, grid_offset_y = offset[1], offset[2]
+			---@diagnostic disable-next-line: need-check-nil
 			local nudge_x, nudge_y = nudge[1] or 0, nudge[2] or 0
 			strace.trace(
 				"BPLIB: SNAP: point",

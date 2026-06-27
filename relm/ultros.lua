@@ -191,7 +191,7 @@ end
 
 local function va_primitive(...) return ... end
 
----@alias Ultros.VarargNodeFactory fun(props_or_children: Relm.Props | Relm.MaybeNode[], children?: Relm.MaybeNode[]): Relm.Node
+---@alias Ultros.VarargNodeFactory fun(props_or_children?: Relm.Props | Relm.MaybeNode[], children?: Relm.MaybeNode[]): Relm.Node
 
 ---Creates a factory for customized nodes. If only prop changes are
 ---needed, you can use this rather than wrapping in virtual nodes.
@@ -470,6 +470,8 @@ lib.Labeled = relm.define_element({
 		return HF(hf_props, {
 			Pr(label_props),
 			HF({ horizontally_stretchable = true }, {}),
+			-- OK to crash-on-nil here because this is a logical misuse of Labeled
+			---@diagnostic disable-next-line: need-check-nil
 			props.children[1],
 		})
 	end,
@@ -959,6 +961,7 @@ local function paint_buttons(elem, primitive_props, get_event_tags)
 
 	---@param style? string
 	local function add_button(style)
+		-- XXX: TYPES: FMTK LuaGuiElement.add_param bug
 		local button = elem.add({
 			type = "choose-elem-button",
 			elem_type = "signal",
@@ -1034,6 +1037,7 @@ local function paint_buttons(elem, primitive_props, get_event_tags)
 
 	-- Destroy excess buttons
 	while #children >= child_index do
+		---@diagnostic disable-next-line: need-check-nil
 		children[child_index].destroy()
 		child_index = child_index + 1
 	end
@@ -1229,7 +1233,7 @@ end
 
 ---Automatically set and unset `player.opened` for this root, while also
 ---enabling "pinning" functionality.
----@param player_index PlayerIndex
+---@param player_index int
 function lib.use_player_opened_pinnable(player_index)
 	local pinned, _set_pinned = relm.use_state(false)
 
@@ -1271,7 +1275,7 @@ end
 
 ---Closes this window when a custom gui is `on_gui_closed`. If pinned,
 ---will not close the window.
----@param player_index PlayerIndex
+---@param player_index int
 ---@param close_me fun()
 ---@param is_pinned boolean?
 ---@param type_filter defines.gui_type|nil If set, only close the window if the closed GUI is of this type. By default, only close on custom GUIs.
