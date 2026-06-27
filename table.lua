@@ -199,7 +199,7 @@ end
 
 ---Run a function for each element in a table.
 ---@generic K, V
----@param T { [K]: V }
+---@param T { [K]: V } | V[]
 ---@param f fun(value: V, key: K)
 function lib.for_each(T, f)
 	for k, v in pairs(T) do
