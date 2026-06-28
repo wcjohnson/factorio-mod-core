@@ -76,11 +76,11 @@ end
 ---Call `fn` if `cond` is truthy, otherwise return an empty table. Useful for
 ---conditional Relm rendering.
 ---@param cond any
----@param fn fun(...): Relm.MaybeNode
+---@param fn fun(...): Relm.MaybeNode?
 ---@return Relm.MaybeNode
 function lib.CallIf(cond, fn, ...)
 	if cond then
-		return fn(...)
+		return fn(...) or empty
 	else
 		return empty
 	end
