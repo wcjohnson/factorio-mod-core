@@ -50,4 +50,36 @@ function lib.sprite_to_rotated(sprite)
 	return rotated_sprite
 end
 
+---Trigger a recipe to unlock with a given technology.
+---@param recipe_name string Name of a recipe prototype.
+---@param technology_name string Name of a technology prototype.
+function lib.unlock_recipe_with_technology(recipe_name, technology_name)
+	if not data.raw.recipe[recipe_name] then
+		log({
+			"",
+			"WARNING: unlock_recipe_with_technology: Recipe ",
+			recipe_name,
+			" does not exist, skipping.",
+		})
+		return
+	end
+	local tech = data.raw.technology[technology_name]
+	if not tech then
+		log({
+			"",
+			"WARNING: unlock_recipe_with_technology: Technology ",
+			technology_name,
+			" does not exist, skipping.",
+		})
+		return
+	end
+
+	if not tech.effects then tech.effects = {} end
+
+	table.insert(tech.effects, {
+		type = "unlock-recipe",
+		recipe = recipe_name,
+	})
+end
+
 return lib
