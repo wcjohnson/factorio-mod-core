@@ -427,7 +427,7 @@ function lib.irpairs(a) return irnext, a, 0 end
 ---Filter an array in place, returning the array.
 ---@generic T
 ---@param A T[]
----@param f fun(value: T, index: integer): boolean?
+---@param f fun(value: T, index: integer): any If truthy, the value is kept; if falsy, it is removed.
 ---@return T[] A The filtered array.
 function lib.filter_in_place(A, f)
 	local j = 1
