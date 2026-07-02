@@ -8,6 +8,7 @@ local tlib = require("lib.core.table")
 local strace = require("lib.core.strace")
 
 local type = _G.type
+local next = next
 local tinsert = table.insert
 local pairs = _G.pairs
 local table_size = _G.table_size

@@ -60,10 +60,10 @@ function lib.deep_copy(tbl, ignore_metatables)
 end
 
 ---Shallowly copies each given table into `dest`, returning `dest`.
----@generic K, V
----@param dest {[K]: V}
----@param ... {[K]: V} | nil
----@return {[K]: V} dest
+---@generic K, V, T
+---@param dest T extends {[K]: V} | table<K, V>
+---@param ... {[K]: V} | table<K, V> | nil
+---@return T dest
 local function assign(dest, ...)
 	local n = select("#", ...)
 	if n == 0 then return dest end
@@ -427,7 +427,7 @@ function lib.irpairs(a) return irnext, a, 0 end
 ---Filter an array in place, returning the array.
 ---@generic T
 ---@param A T[]
----@param f fun(value: T, index: integer): boolean?
+---@param f fun(value: T, index: integer): any If truthy, the value is kept; if falsy, it is removed.
 ---@return T[] A The filtered array.
 function lib.filter_in_place(A, f)
 	local j = 1
