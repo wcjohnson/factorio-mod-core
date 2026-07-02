@@ -926,7 +926,7 @@ local function si_format(count, divisor, si_symbol)
 	end
 end
 
----@param count int
+---@param count number
 ---@return string
 local function format_signal_count(count)
 	local absv = abs(count)
@@ -990,7 +990,7 @@ local function paint_buttons(elem, primitive_props, get_event_tags)
 		button.enabled = is_enabled
 		button.elem_value = button_info and button_info.signal
 		button.style = (button_info and button_info.button_style) or default_style
-		local lower = button.children[1]
+		local lower = button.children[1] --[[@as LuaGuiElement]]
 		local count = button_info and button_info.count or ""
 		if type(count) == "number" then count = format_signal_count(count) end
 		lower.caption = count
@@ -998,7 +998,7 @@ local function paint_buttons(elem, primitive_props, get_event_tags)
 			lower.style.font_color = button_info.lower_color
 		end
 		if uppers then
-			local upper = button.children[2]
+			local upper = button.children[2] --[[@as LuaGuiElement]]
 			local upper_count = button_info and button_info.upper or ""
 			if type(upper_count) == "number" then
 				upper_count = format_signal_count(upper_count)
