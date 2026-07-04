@@ -2175,6 +2175,21 @@ function lib.use_effect(effect_key, callback, cleanup)
 	end
 end
 
+---Use the result of calling a function. This can be used to lift gamestate
+---queries out of the render loop. Hydrating renders will return a memoized
+---value from the previous render, and will not call the `calculate` function.
+---@param calculate fun(): any A function that calculates an arbitrary value. (The return value of this function is placed in `storage` and must be serializable.)
+function lib.use_result(calculate)
+	local node, index, last_value = setup_hook()
+	if render_is_hydrating then
+		return last_value
+	else
+		last_value = calculate()
+		set_hook_state(node, index, last_value)
+		return last_value
+	end
+end
+
 ---Returns a handle to the currently-rendering Relm element. This can be used
 ---to correctly wire up event handlers as closures. NOTE: You MUST NOT cause
 ---side effects during `render` using this handle.
