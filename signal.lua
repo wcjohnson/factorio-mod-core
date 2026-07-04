@@ -198,9 +198,10 @@ local function missed_key_to_signal_parts(key)
 end
 
 ---Convert a key to a signal.
----@param key SignalKey
+---@param key SignalKey?
 ---@return SignalID?
 local function key_to_signal(key)
+	if not key then return nil end
 	local signal = _key_to_sig[key]
 	if signal then return signal end
 	-- Cache miss so we have to reconstruct the signal
