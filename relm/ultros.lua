@@ -477,7 +477,7 @@ lib.Labeled = relm.define_element({
 	end,
 })
 
-lib.SignalPicker = lib.customize_primitive({
+lib.ChooseElemButton = lib.customize_primitive({
 	type = "choose-elem-button",
 	elem_type = "signal",
 }, function(props)
@@ -504,6 +504,7 @@ lib.SignalPicker = lib.customize_primitive({
 		)
 	end
 end)
+lib.SignalPicker = lib.ChooseElemButton
 
 local function checkbox_customizer(props)
 	if props.value == true or props.value == false then
