@@ -184,7 +184,7 @@ local points_and_offsets = {
 		{ 0, 1 },
 		{ -0.5, 0 },
 		{ { 0, 1 }, { 1, 1 } },
-		{ { -0.5, 0 }, { -0.5, 0 } },
+		{ { 0.5, 0 }, { -0.5, 0 } },
 	},
 	-- Point 1,0.5
 	{
@@ -341,6 +341,7 @@ local function find_global_grid_offset(
 				"mod4s",
 				w_mod_4,
 				h_mod_4,
+				"case",
 				case
 			)
 			-- game.print({
