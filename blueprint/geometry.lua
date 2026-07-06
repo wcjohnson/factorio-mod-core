@@ -5,6 +5,7 @@ local proto_lib = require("lib.core.blueprint.proto")
 local num_lib = require("lib.core.math.numeric")
 local snap_lib = require("lib.core.blueprint.snap")
 local strace = require("lib.core.strace")
+local orientation_lib = require("lib.core.orientation.orientation")
 
 local ipairs = ipairs
 local pos_get = pos_lib.pos_get
@@ -42,6 +43,7 @@ local lib = {}
 ---@field public direction? defines.direction
 ---@field public flip_horizontal? boolean
 ---@field public flip_vertical? boolean
+---@field public transform_index? 0|1|2|3|4|5|6|7 D8 group index of the transform applied to the blueprint.
 ---@field public rot_n? 0|1|2|3 Number of 90 degree CW rotations equivalent to the direction.
 ---@field public bpspace_bbox? BoundingBox
 ---@field public bpspace_center? MapPosition
@@ -83,6 +85,11 @@ function BlueprintGeometry:set_orientation(
 	self.flip_horizontal = flip_horizontal
 	self.flip_vertical = flip_vertical
 	self.rot_n = floor(direction / 4)
+	self.transform_index = orientation_lib.get_blueprint_transform_index({
+		direction = direction,
+		flip_horizontal = flip_horizontal,
+		flip_vertical = flip_vertical,
+	} --[[@as Core.BlueprintOrientationData]])
 end
 
 ---Set absolute snapping parameters for the blueprint. This will override any relative snapping.
@@ -258,6 +265,24 @@ function BlueprintGeometry:place(pos)
 		-- first, then the zero of BP space is made to match the topleft of that grid square.
 		local gx, gy = pos_get(self.snap_grid or ZERO)
 		local ox, oy = pos_get(self.snap_offset or ZERO)
+		if (rot_n % 2) == 1 then
+			gx, gy = gy, gx
+			ox, oy = oy, ox
+		end
+		strace.trace(
+			"BPLIB: BlueprintGeometry:place: absolute snapping with grid",
+			gx,
+			gy,
+			"offset",
+			ox,
+			oy,
+			"rot_n",
+			rot_n,
+			"flipped_h",
+			self.flip_horizontal,
+			"flipped_v",
+			self.flip_vertical
+		)
 		local gl, gt, gr, gb =
 			snap_lib.get_absolute_grid_square(x, y, gx, gy, ox, oy)
 		bbox_set(placement_bbox, l + gl, t + gt, r + gl, b + gt)
