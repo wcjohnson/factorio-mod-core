@@ -26,7 +26,7 @@ local lib = {}
 
 ---Information given about the orientation of a blueprint when being placed.
 ---This matches e.g. the `on_pre_build` event data.
----@alias Core.BlueprintOrientationData {position: MapPosition, direction: defines.direction, flip_horizontal: boolean, flip_vertical: boolean}
+---@alias Core.BlueprintOrientationData {position: MapPosition, direction: defines.direction, flip_horizontal?: boolean, flip_vertical?: boolean}
 
 ---Bitwise encoded orientation. The lower 17 bits encode the dihedral
 ---group element for this orientation; the next 8 bits encode the orientation
