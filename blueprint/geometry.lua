@@ -269,31 +269,37 @@ function BlueprintGeometry:place(pos)
 			gx, gy = gy, gx
 			ox, oy = oy, ox
 		end
-		strace.trace(
-			"BPLIB: BlueprintGeometry:place: absolute snapping with grid",
-			gx,
-			gy,
-			"offset",
-			ox,
-			oy,
-			"rot_n",
-			rot_n,
-			"flipped_h",
-			self.flip_horizontal,
-			"flipped_v",
-			self.flip_vertical
-		)
 		local gl, gt, gr, gb =
 			snap_lib.get_absolute_grid_square(x, y, gx, gy, ox, oy)
-		bbox_set(placement_bbox, l + gl, t + gt, r + gl, b + gt)
 
-		-- Flip/rot is about the center of the gridsquare.
-		local rot_center = { (gl + gr) / 2, (gt + gb) / 2 }
-		if self.flip_horizontal then
-			bbox_flip_horiz(placement_bbox, rot_center[1])
+		-- Map the bbox into the new worldspace unit cell.
+		-- TODO: we need mat2d...
+		local bpxaxis, bpyaxis, bpcorner =
+			orientation_lib.get_blueprint_transform_axes(
+				self.transform_index --[[@cast -?]]
+			)
+
+		local bporigin
+		if bpcorner == 0 then
+			bporigin = { gl, gt }
+		elseif bpcorner == 1 then
+			bporigin = { gr, gt }
+		elseif bpcorner == 2 then
+			bporigin = { gr, gb }
+		elseif bpcorner == 3 then
+			bporigin = { gl, gb }
 		end
-		if self.flip_vertical then bbox_flip_vert(placement_bbox, rot_center[2]) end
-		bbox_rotate_ortho(placement_bbox, rot_center, -rot_n)
+
+		local bb_tl = pos_new(bporigin)
+		pos_add(bb_tl, l, bpxaxis)
+		pos_add(bb_tl, t, bpyaxis)
+		local bb_l, bb_t = pos_get(bb_tl)
+		local bb_br = pos_new(bporigin)
+		pos_add(bb_br, r, bpxaxis)
+		pos_add(bb_br, b, bpyaxis)
+		local bb_r, bb_b = pos_get(bb_br)
+
+		bbox_set(placement_bbox, bb_l, bb_t, bb_r, bb_b)
 
 		-- Debug: draw green box around computed absolute gridsquare
 		if self.debug_render_surface then
