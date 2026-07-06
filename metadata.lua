@@ -4,6 +4,20 @@
 
 local lib = {}
 
+---Prototype-types that use build-grid 2
+---@type {[string]: true}
+local build_grid_2_types = {
+	["curved-rail-a"] = true,
+	["curved-rail-b"] = true,
+	["straight-rail"] = true,
+	["half-diagonal-rail"] = true,
+	["train-stop"] = true,
+	["rail-support"] = true,
+	["rail-ramp"] = true,
+	["cargo-bay"] = true,
+}
+lib.build_grid_2_types = build_grid_2_types
+
 ---Prototype-types that can use mirroring bit in their orientation.
 ---Note that `use_mirroring` has to be checked in addition to this to
 ---determine if a specific prototype-name uses mirroring.
@@ -36,6 +50,7 @@ local circuit_network_types = {
 	["artillery-turret"] = true,
 	["assembling-machine"] = true,
 	["asteroid-collector"] = true,
+	["boiler"] = true,
 	["cargo-landing-pad"] = true,
 	["constant-combinator"] = true,
 	["container"] = true,
@@ -44,9 +59,13 @@ local circuit_network_types = {
 	["electric-pole"] = true,
 	["electric-turret"] = true,
 	["furnace"] = true,
+	["heat-pipe"] = true,
 	["infinity-container"] = true,
+	["infinity-pipe"] = true,
 	["inserter"] = true,
+	["lab"] = true,
 	["lamp"] = true,
+	["land-mine"] = true,
 	["linked-container"] = true,
 	["loader-1x1"] = true,
 	["loader"] = true,
