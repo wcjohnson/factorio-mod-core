@@ -9,6 +9,7 @@ local dir_N = defines.direction.north
 local dir_S = defines.direction.south
 local dir_E = defines.direction.east
 local dir_W = defines.direction.west
+local ZERO = { 0, 0 }
 
 local lib = {}
 
@@ -219,6 +220,30 @@ end
 --- @return defines.direction
 function lib.dir_opposite(direction)
 	return ((direction + 8) % 16) --[[@as defines.direction]]
+end
+
+---Transform a position as if it were a blueprint entity position. Mutates
+---the given position.
+---@param pos MapPosition
+---@param center MapPosition
+---@param rot_n int
+---@param flip_horizontal boolean?
+---@param flip_vertical boolean?
+---@return MapPosition pos The transformed position.
+function lib.pos_blueprint_transform(
+	pos,
+	center,
+	rot_n,
+	flip_horizontal,
+	flip_vertical
+)
+	pos_add(pos, -1, center)
+	local x, y = pos_get(pos)
+	if flip_horizontal then x = -x end
+	if flip_vertical then y = -y end
+	pos_set(pos, x, y)
+	pos_rotate_ortho(pos, ZERO, -rot_n)
+	return pos
 end
 
 return lib
