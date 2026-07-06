@@ -363,6 +363,35 @@ function lib.get_blueprint_transform_index(blueprint_orientation)
 	return dihedral.index(order, r, s)
 end
 
+---Given a blueprint transform index, return: (1) the unit vector of bpspace
+---X in world space, (2) the unit vector of bpspace Y in world space, and (3)
+---the point of a square to which the top-left corner would be mapped.
+---@param index 0|1|2|3|4|5|6|7
+---@return MapPosition bpspace_x_in_world
+---@return MapPosition bpspace_y_in_world
+---@return 0|1|2|3 top_left_corner_in_world
+function lib.get_blueprint_transform_axes(index)
+	if index == 0 then
+		return { 1, 0 }, { 0, 1 }, 0
+	elseif index == 1 then
+		return { 0, 1 }, { -1, 0 }, 1
+	elseif index == 2 then
+		return { -1, 0 }, { 0, -1 }, 2
+	elseif index == 3 then
+		return { 0, -1 }, { 1, 0 }, 3
+	elseif index == 4 then
+		return { -1, 0 }, { 0, 1 }, 1
+	elseif index == 5 then
+		return { 0, -1 }, { -1, 0 }, 2
+	elseif index == 6 then
+		return { 1, 0 }, { 0, -1 }, 3
+	elseif index == 7 then
+		return { 0, 1 }, { 1, 0 }, 0
+	else
+		error("Invalid blueprint transform index: " .. index)
+	end
+end
+
 ---Stringify an orientation for debugging.
 ---@param orientation Core.Orientation?
 ---@return string
