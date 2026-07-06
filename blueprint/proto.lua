@@ -31,12 +31,26 @@ local straight_rail_parity_table = {
 	[14] = { 0, 0 },
 }
 
+---@type Core.BlueprintGeometryParityTable
+local even_parity_table = {
+	[0] = { 0, 0 },
+	[2] = { 0, 0 },
+	[4] = { 0, 0 },
+	[6] = { 0, 0 },
+	[8] = { 0, 0 },
+	[10] = { 0, 0 },
+	[12] = { 0, 0 },
+	[14] = { 0, 0 },
+}
+
 ---@type table<string, Core.BlueprintGeometryParityTable>
 local parity_by_type = {
 	["straight-rail"] = straight_rail_parity_table,
 	["curved-rail-a"] = curved_rail_a_parity_table,
 	["elevated-straight-rail"] = straight_rail_parity_table,
 	["elevated-curved-rail-a"] = curved_rail_a_parity_table,
+	["cargo-landing-pad"] = even_parity_table,
+	["cargo-bay"] = even_parity_table,
 }
 
 ---@class Core.BlueprintGeometryPrototypeInfo

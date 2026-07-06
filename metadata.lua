@@ -15,6 +15,7 @@ local build_grid_2_types = {
 	["rail-support"] = true,
 	["rail-ramp"] = true,
 	["cargo-bay"] = true,
+	["cargo-landing-pad"] = true,
 }
 lib.build_grid_2_types = build_grid_2_types
 
