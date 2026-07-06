@@ -4,7 +4,6 @@
 --------------------------------------------------------------------------------
 local bbox_lib = require("lib.core.math.bbox")
 local pos_lib = require("lib.core.math.pos")
-local geom_lib = require("lib.core.blueprint.custom-geometry")
 local num_lib = require("lib.core.math.numeric")
 local strace = require("lib.core.strace")
 local table_lib = require("lib.core.table")
@@ -387,6 +386,8 @@ local function get_snap_entity_geometry(
 	flip_horizontal,
 	flip_vertical
 )
+	-- XXX: TYPES: FMTK string union bug
+	---@diagnostic disable-next-line: param-type-mismatch
 	local proto = proto_lib.get_prototype_geometry(snap_entity.name)
 	if (not proto) or (proto.build_grid_size ~= 2) then
 		error(

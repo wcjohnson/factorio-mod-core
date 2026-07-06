@@ -131,12 +131,7 @@ function BlueprintGeometry:compute_bbox()
 		end
 
 		-- Generate bpspace bbox for this entity
-		local ebox = bbox_new(
-			-eproto.half_tile_width,
-			-eproto.half_tile_height,
-			eproto.half_tile_width,
-			eproto.half_tile_height
-		)
+		local ebox = bbox_new(eproto.bbox)
 		-- TODO: this probably doesn't work for railgun turrets/D16 ents
 		bbox_rotate_ortho(ebox, ZERO, floor(entity.direction / 4))
 		bbox_translate(ebox, 1, epos)

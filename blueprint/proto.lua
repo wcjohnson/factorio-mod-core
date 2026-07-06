@@ -45,8 +45,7 @@ local parity_by_type = {
 ---@field public collision_box BoundingBox
 ---@field public tile_width number
 ---@field public tile_height number
----@field public half_tile_width number
----@field public half_tile_height number
+---@field public bbox BoundingBox
 ---@field public build_grid_size number
 ---@field public parity_table? Core.BlueprintGeometryParityTable If given, parity must be looked up per direction. If not given, parity is oddxodd for all directions. Never given unless build_Grid_size is 2.
 ---@field public global_center? boolean If true, this entity must be positioned at the global center (0,0) at worldspace. Only true for space platform hubs currently.
@@ -54,20 +53,35 @@ local parity_by_type = {
 ---@type table<string, Core.BlueprintGeometryPrototypeInfo>
 local _cache = {}
 
+---@param name string
 ---@return Core.BlueprintGeometryPrototypeInfo
 local function get_prototype_geometry(name)
 	local info = _cache[name]
 	if not info then
 		local eproto = prototypes.entity[name]
 		local type = eproto.type
+		local collision_box = bbox_new(eproto.collision_box)
+		local tile_width = eproto.tile_width
+		local tile_height = eproto.tile_height
+		local bbox
+		if eproto.has_flag("placeable-off-grid") then
+			bbox = collision_box
+		else
+			bbox = bbox_new(
+				-tile_width / 2,
+				-tile_height / 2,
+				tile_width / 2,
+				tile_height / 2
+			)
+		end
+
 		info = {
 			name = eproto.name,
 			type = type,
-			collision_box = bbox_new(eproto.collision_box),
-			tile_width = eproto.tile_width,
-			tile_height = eproto.tile_height,
-			half_tile_width = eproto.tile_width / 2,
-			half_tile_height = eproto.tile_height / 2,
+			collision_box = collision_box,
+			bbox = bbox,
+			tile_width = tile_width,
+			tile_height = tile_height,
 			build_grid_size = metadata_lib.build_grid_2_types[type] and 2 or 1,
 			parity_table = parity_by_type[type],
 			global_center = (type == "space-platform-hub"),

@@ -74,7 +74,7 @@ lib.get_blueprint_entity_pos = get_blueprint_entity_pos
 ---@param debug_render_surface LuaSurface? If given, debug graphics will be drawn on the given surface showing blueprint placement computations.
 ---@return {[uint]: MapPosition} bp_to_world_pos A mapping of blueprint entity indices to world positions.
 ---@return BoundingBox placement_bbox The bounding box in worldspace that the blueprint would occupy.
-local function get_blueprint_world_positions(
+function lib.get_blueprint_world_positions(
 	bp_entities,
 	bp_entity_filter,
 	bbox,
@@ -278,6 +278,5 @@ local function get_blueprint_world_positions(
 
 	return bp_to_world_pos, placement_bbox
 end
-lib.get_blueprint_world_positions = get_blueprint_world_positions
 
 return lib
