@@ -14,6 +14,7 @@ local pos_set = pos_lib.pos_set
 local pos_new = pos_lib.pos_new
 local pos_add = pos_lib.pos_add
 local pos_rotate_ortho = pos_lib.pos_rotate_ortho
+local pos_blueprint_transform = pos_lib.pos_blueprint_transform
 
 local pos_set_center = bbox_lib.pos_set_center
 local bbox_new = bbox_lib.bbox_new
@@ -46,22 +47,20 @@ local function get_blueprint_entity_pos(
 )
 	-- Get bpspace position
 	local epos = pos_new(bp_entity.position)
-	-- Move to central frame of reference
-	pos_add(epos, -1, bp_center)
-	-- Apply flip
-	local rx, ry = pos_get(epos)
-	if flip_horizontal then rx = -rx end
-	if flip_vertical then ry = -ry end
-	pos_set(epos, rx, ry)
-	-- Apply blueprint rotation
-	pos_rotate_ortho(epos, ZERO, -bp_rot_n)
-	return epos
+	return pos_blueprint_transform(
+		epos,
+		bp_center,
+		bp_rot_n,
+		flip_horizontal,
+		flip_vertical
+	)
 end
 lib.get_blueprint_entity_pos = get_blueprint_entity_pos
 
 ---If a blueprint with the given entities were stamped in the world with
 ---the given parameters, determine the resulting world position of
 ---each entity of the blueprint.
+---@deprecated Use `BlueprintGeometry` instead.
 ---@param bp_entities BlueprintEntity[] A *nonempty* set of blueprint entities
 ---@param bp_entity_filter? fun(bp_entity: BlueprintEntity, index: uint32): boolean Filters which blueprint entities will have their positions computed. Filtering can save some work in handling large blueprints. (Note that you MUST NOT prefilter the blueprint entities array before calling this function.)
 ---@param bbox BoundingBox As computed by `get_blueprint_bbox`.
@@ -258,6 +257,7 @@ local function get_blueprint_world_positions(
 		pos_add(epos, 1, translation_center)
 
 		if debug_render_surface then
+			local epx, epy = pos_get(epos)
 			-- Debug: blue square at computed entity pos.
 			-- This should overlap precisely with the green square drawn by the F4
 			-- debug mode when showing entity positions.
@@ -265,8 +265,8 @@ local function get_blueprint_world_positions(
 				color = { r = 0, g = 0, b = 1, a = 1 },
 				width = 1,
 				filled = true,
-				left_top = { epos[1] - 0.2, epos[2] - 0.2 },
-				right_bottom = { epos[1] + 0.2, epos[2] + 0.2 },
+				left_top = { epx - 0.2, epy - 0.2 },
+				right_bottom = { epx + 0.2, epy + 0.2 },
 				surface = debug_render_surface,
 				time_to_live = 1800,
 			})

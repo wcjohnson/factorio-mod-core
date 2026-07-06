@@ -8,6 +8,7 @@ local geom_lib = require("lib.core.blueprint.custom-geometry")
 local num_lib = require("lib.core.math.numeric")
 local strace = require("lib.core.strace")
 local table_lib = require("lib.core.table")
+local proto_lib = require("lib.core.blueprint.proto")
 
 local lib = {}
 
@@ -16,6 +17,7 @@ local bbox_get = bbox_lib.bbox_get
 local pos_get = pos_lib.pos_get
 local pos_new = pos_lib.pos_new
 local pos_add = pos_lib.pos_add
+local pos_blueprint_transform = pos_lib.pos_blueprint_transform
 local round = num_lib.round
 local ZERO = { 0, 0 }
 local pos_rotate_ortho = pos_lib.pos_rotate_ortho
@@ -48,7 +50,9 @@ local function get_box_parity(bbox)
 	return px, py
 end
 
-local function get_snap_base(bbox, pos)
+---@return number x
+---@return number y
+local function snap_1x1(bbox, pos)
 	local dx_parity, dy_parity = get_box_parity(bbox)
 	local x, y = pos_get(pos)
 	if dx_parity == 0 then
@@ -63,6 +67,7 @@ local function get_snap_base(bbox, pos)
 	end
 	return x, y
 end
+lib.snap_1x1 = snap_1x1
 
 -- TODO: This is a copypasta to avoid circular deps. Refactor later.
 local function get_blueprint_entity_pos(
@@ -74,16 +79,13 @@ local function get_blueprint_entity_pos(
 )
 	-- Get bpspace position
 	local epos = pos_new(bp_entity.position)
-	-- Move to central frame of reference
-	pos_add(epos, -1, bp_center)
-	-- Apply flip
-	local rx, ry = pos_get(epos)
-	if flip_horizontal then rx = -rx end
-	if flip_vertical then ry = -ry end
-	pos_set(epos, rx, ry)
-	-- Apply blueprint rotation
-	pos_rotate_ortho(epos, ZERO, -bp_rot_n)
-	return epos
+	return pos_blueprint_transform(
+		epos,
+		bp_center,
+		bp_rot_n,
+		flip_horizontal,
+		flip_vertical
+	)
 end
 
 local function is_valid_box_snap_point(snap_point, box_parity_x, box_parity_y)
@@ -375,6 +377,8 @@ local function find_global_grid_offset(
 	error("LOGIC ERROR: No valid global grid offset found.")
 end
 
+local ZERO_DIRECTION = 0 --[[@as defines.direction]]
+
 ---@param snap_entity BlueprintEntity
 local function get_snap_entity_geometry(
 	snap_entity,
@@ -383,23 +387,30 @@ local function get_snap_entity_geometry(
 	flip_horizontal,
 	flip_vertical
 )
-	local proto = prototypes.entity[snap_entity.name]
-	local snap_table =
-		geom_lib.get_custom_geometry(proto.type, proto.name, snap_entity.direction)
-	if not snap_table then
-		-- XXX: this should never happen
+	local proto = proto_lib.get_prototype_geometry(snap_entity.name)
+	if (not proto) or (proto.build_grid_size ~= 2) then
 		error(
-			"LOGIC ERROR: No custom geometry for snap entity " .. snap_entity.name
+			"LOGIC ERROR: snap entity "
+				.. snap_entity.name
+				.. " is not a valid 2x2 snap entity"
 		)
 	end
-	local snap_parity_x, snap_parity_y = snap_table[5], snap_table[6]
-	-- Convert to mod 2 arithmetic
-	snap_parity_x = (snap_parity_x == 2) and 0 or 1
-	snap_parity_y = (snap_parity_y == 2) and 0 or 1
+
+	-- Determine parities
+	local snap_parity_x, snap_parity_y = 1, 1
+	if proto.parity_table then
+		local parity_table = proto.parity_table
+		local parity_entry = parity_table[snap_entity.direction or ZERO_DIRECTION]
+			or parity_table[ZERO_DIRECTION]
+		if parity_entry then
+			snap_parity_x, snap_parity_y = parity_entry[1], parity_entry[2]
+		end
+	end
 	-- Swap x and y parities if the blueprint is rotated.
 	if bp_rot_n % 2 == 1 then
 		snap_parity_x, snap_parity_y = snap_parity_y, snap_parity_x
 	end
+
 	local snap_entity_pos = get_blueprint_entity_pos(
 		snap_entity,
 		bp_center,
@@ -409,6 +420,49 @@ local function get_snap_entity_geometry(
 	)
 	return snap_entity_pos, snap_parity_x, snap_parity_y
 end
+
+local function snap_2x2(
+	pos,
+	bbox,
+	snap_entity,
+	bp_center,
+	bp_rot_n,
+	flip_horizontal,
+	flip_vertical,
+	debug_render_surface
+)
+	local x, y = pos_get(pos)
+	local l, t, r, b = bbox_get(bbox)
+	local w = floor_approx(r - l)
+	local h = floor_approx(b - t)
+	local snap_entity_pos, parity_x, parity_y = get_snap_entity_geometry(
+		snap_entity,
+		bp_center,
+		bp_rot_n,
+		flip_horizontal,
+		flip_vertical
+	)
+	local offset, nudge =
+		find_global_grid_offset(w, h, snap_entity_pos, parity_x, parity_y)
+	local ox, oy = pos_get(offset)
+	local gl, gt, gr, gb = get_absolute_grid_square(x, y, 2, 2, ox, oy)
+	if debug_render_surface then
+		-- Debug: draw green box around computed absolute gridsquare
+		rendering.draw_rectangle({
+			color = { r = 0, g = 1, b = 0, a = 1 },
+			width = 3,
+			filled = false,
+			left_top = { gl, gt },
+			right_bottom = { gr, gb },
+			surface = debug_render_surface,
+			time_to_live = 1800,
+		})
+	end
+	local square_center = pos_new((gl + gr) / 2, (gt + gb) / 2)
+	if nudge then pos_add(square_center, 1, nudge) end
+	return square_center
+end
+lib.snap_2x2 = snap_2x2
 
 ---@param cursor_pos MapPosition Cursor position in world space.
 ---@param bbox BoundingBox Transformed bpspace bbox.
@@ -430,38 +484,19 @@ function lib.find_snap_point(
 	debug_render_surface
 )
 	if snap_entity then
-		local x, y = pos_get(cursor_pos)
-		local l, t, r, b = bbox_get(bbox)
-		local w = floor_approx(r - l)
-		local h = floor_approx(b - t)
-		local snap_entity_pos, parity_x, parity_y = get_snap_entity_geometry(
+		local snapped_pos = snap_2x2(
+			cursor_pos,
+			bbox,
 			snap_entity,
-			bp_center,
-			bp_rot_n,
-			flip_horizontal,
-			flip_vertical
+			bp_center or ZERO,
+			bp_rot_n or 0,
+			flip_horizontal or false,
+			flip_vertical or false,
+			debug_render_surface
 		)
-		local offset, nudge =
-			find_global_grid_offset(w, h, snap_entity_pos, parity_x, parity_y)
-		local ox, oy = pos_get(offset)
-		local gl, gt, gr, gb = get_absolute_grid_square(x, y, 2, 2, ox, oy)
-		if debug_render_surface then
-			-- Debug: draw green box around computed absolute gridsquare
-			rendering.draw_rectangle({
-				color = { r = 0, g = 1, b = 0, a = 1 },
-				width = 3,
-				filled = false,
-				left_top = { gl, gt },
-				right_bottom = { gr, gb },
-				surface = debug_render_surface,
-				time_to_live = 1800,
-			})
-		end
-		local square_center = pos_new((gl + gr) / 2, (gt + gb) / 2)
-		if nudge then pos_add(square_center, 1, nudge) end
-		return square_center
+		return snapped_pos
 	else
-		local x, y = get_snap_base(bbox, cursor_pos)
+		local x, y = snap_1x1(bbox, cursor_pos)
 		return { x, y }
 	end
 end
