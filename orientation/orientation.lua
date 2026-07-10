@@ -177,6 +177,19 @@ function lib.loose_eq(a, b)
 	return true
 end
 
+---Return a new Orientation that when applied to A, gives B. Dihedrally
+---this is just A^-1 * B. If the orientations are not compatible (different class), returns nil.
+---@param A Core.Orientation
+---@param B Core.Orientation
+---@return Core.Dihedral|nil
+function lib.diff(A, B)
+	local class_a, dih_a = decode(A)
+	local class_b, dih_b = decode(B)
+	if class_a ~= class_b then return nil end
+	local ainv = dihedral.invert(dih_a)
+	return dih_product(dih_b, ainv)
+end
+
 ---Get a transform corresponding to rotating an entity with the given
 ---orientation clockwise in a given context.
 ---If `nil`, the operation cannot be performed in that context.
