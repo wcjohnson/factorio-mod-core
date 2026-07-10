@@ -60,8 +60,8 @@ function lib.deep_copy(tbl, ignore_metatables)
 end
 
 ---Shallowly copies each given table into `dest`, returning `dest`.
----@generic K, V, T
----@param dest T extends {[K]: V} | table<K, V>
+---@generic K, V, T extends {[K]: V} | table<K, V>
+---@param dest T
 ---@param ... {[K]: V} | table<K, V> | nil
 ---@return T dest
 local function assign(dest, ...)
@@ -238,9 +238,9 @@ end
 ---a key-value pair, or `nil` to omit the entry. The new table will be
 ---gathered from the returned pairs.
 ---@generic K, V, L, W
----@param T {[K]: V}
+---@param T {[K]: V} | table<K, V>
 ---@param f fun(key: K, value: V): L?, W?
----@return {[L]: W}
+---@return table<L, W>
 function lib.t_map_t(T, f)
 	local U = {}
 	for k, v in pairs(T) do
