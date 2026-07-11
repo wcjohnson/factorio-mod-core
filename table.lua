@@ -256,7 +256,7 @@ end
 ---@generic T, K, V
 ---@param A T[]
 ---@param f fun(entry: T, index: integer): K?, V?
----@return {[K]: V}
+---@return table<K, V>
 function lib.a_map_t(A, f)
 	local T = {}
 	for i = 1, #A do
@@ -268,7 +268,7 @@ end
 
 ---Reduce a table to a single value by applying a reducer function.
 ---@generic K, V, A
----@param T {[K]: V}
+---@param T {[K]: V} | table<K, V>
 ---@param initial A The initial accumulator value.
 ---@param reducer fun(acc: A, key: K, value: V): A The reducer function.
 ---@return A acc The final accumulated value.
