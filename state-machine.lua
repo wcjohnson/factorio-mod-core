@@ -1,6 +1,9 @@
 local class = require("lib.core.class").class
 
 ---@class StateMachine
+---@field public state string Current state.
+---@field public is_changing_state boolean? `true` if a state change is ongoing
+---@field public queued_state_changes string[]? A queue of state changes to be applied
 local StateMachine = class()
 
 ---@param initial_state string
