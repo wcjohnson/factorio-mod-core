@@ -1,14 +1,10 @@
 --- Cooperative multitasking library for Factorio mods.
 
-local log = require("lib.core.strace")
+local strace = require("lib.core.strace")
 local class = require("lib.core.class").class
 
 ---@class Core.CMT.Lib
 local lib = {}
-
--- EMA parameters
-local ALPHA = 0.25
-local ONE_MINUS_ALPHA = 1 - ALPHA
 
 --------------------------------------------------------------------------------
 -- Data
@@ -21,9 +17,8 @@ local ONE_MINUS_ALPHA = 1 - ALPHA
 ---@class Core.CMT.Task
 ---@field public id Core.CMT.TaskID The ID of the task
 ---@field public friendly_name? string An optional friendly name for debugging purposes
----@field public frame_work_cap? number Maximum workload this task can consume per frame. The task's main loop will be re-entered until this cap is reached or the total frame cap is reached. If not given, 0, or negative, the task will yield after each iteration of its main loop.
----@field public ema_work_per_frame number An exponentially moving average of the work done by this task per frame
----@field public ema_work_per_timeslice number An exponentially moving average of the work done by this task per timeslice
+---@field public work_current number The amount of current sequential work done by this task.
+---@field public work_cap? number Maximum workload this task can consume sequentially. The task's main loop will be re-entered until this cap is reached. If not given, 0, or negative, the task will yield after each iteration of its main loop.
 ---@field public debug_paused? boolean Whether the task is paused for debugging purposes
 ---@field public debug_stepped? boolean Whether the task should execute one step while paused for debugging purposes
 local Task = class("Core.CMT.Task")
