@@ -8,6 +8,7 @@ local log = require("lib.core.strace")
 
 local unpack = table.unpack
 local pairs = _G.pairs
+local ipairs = ipairs
 local next = _G.next
 local type = _G.type
 local setmetatable = _G.setmetatable
@@ -323,6 +324,22 @@ lib.register_handler("@call_method", function(task)
 	return ABORT
 end)
 
+lib.register_handler("@call_global", function(task)
+	local data = task.data
+	local func_path = data[1]
+	local func = _G
+	for _, part in ipairs(func_path) do
+		func = func[part]
+		if not func then return ABORT end
+	end
+	if type(func) == "function" then
+		func(unpack(data, 2))
+		return
+	end
+
+	return ABORT
+end)
+
 ---Call a method on a serializable object at a given tick.
 ---@param tick uint64
 ---@param serializable_object table
@@ -331,5 +348,13 @@ function lib.at_method(tick, serializable_object, method_name, ...)
 	return lib.at(tick, "@call_method", { serializable_object, method_name, ... })
 end
 lib.call_method_at = lib.at_method
+
+----Call a global function at a given tick.
+---@param tick uint64
+---@param func_path string[] The path to the global function to call, as a list of table keys.
+---@param ... AnyBasic|LuaObject Additional arguments to pass to the function. Must be `storage`-safe.
+function lib.call_global_at(tick, func_path, ...)
+	return lib.at(tick, "@call_global", { func_path, ... })
+end
 
 return lib
