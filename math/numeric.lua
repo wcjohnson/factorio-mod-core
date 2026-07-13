@@ -4,6 +4,14 @@ local abs = math.abs
 
 local lib = {}
 
+---Maximum safe integer representable as a `number`
+local MAX_SAFE_INTEGER = 9007199254740991
+lib.MAX_SAFE_INTEGER = MAX_SAFE_INTEGER
+
+---A large integer slightly below the maximum safe integer in Lua.
+local BIG_INT = 9007199254740000
+lib.BIG_INT = BIG_INT
+
 ---Round to nearest factor of `bracket`.
 ---@param v number The value to round.
 ---@param bracket? number The rounding bracket. Defaults to 1.
