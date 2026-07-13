@@ -64,6 +64,9 @@ function Task:main() return 0 end
 ---@field public max_work_per_frame number Maximum amount of work to be done per frame across all tasks
 
 local function init_cmt_storage()
+	strace.warn(
+		"Initializing CMT storage. This should only happen once per game session."
+	)
 	---@type Core.CMT.Storage
 	local data = {
 		tasks = {},
