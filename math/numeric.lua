@@ -16,8 +16,9 @@ lib.round = round
 
 ---Format a number of ticks in the form "HHvhMMvmSSvs" where a second is
 ---60 ticks.
----@param ticks uint The number of ticks.
+---@param ticks number The number of ticks.
 function lib.format_ticks(ticks)
+	ticks = abs(ticks)
 	local seconds = floor(ticks / 60)
 	local minutes = floor(seconds / 60)
 	local hours = floor(minutes / 60)
