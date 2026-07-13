@@ -229,6 +229,17 @@ local function key_to_signal(key)
 end
 lib.key_to_signal = key_to_signal
 
+---@param key SignalKey?
+---@return boolean is_virtual
+local function key_is_virtual(key)
+	if key == nil then return false end
+	local verdict = _key_is_virtual[key]
+	if verdict ~= nil then return verdict end
+	local sig = key_to_signal(key)
+	return sig and (sig.type == "virtual") or false
+end
+lib.key_is_virtual = key_is_virtual
+
 ---Spread SignalCounts into two arrays: one of SignalIDs and one of counts.
 ---@param signal_counts SignalCounts
 ---@return SignalID[] signals
