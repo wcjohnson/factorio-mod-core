@@ -15,6 +15,8 @@ local filter_in_place = tlib.filter_in_place
 local pairs = pairs
 local tinsert = table.insert
 
+local REALTIME_WORK_CAP = BIG_INT / 2.0
+
 ---@class Core.CMT.Lib
 local lib = {}
 
@@ -190,7 +192,8 @@ local function scheduler_tick(tick_data)
 	local work_cap = data.max_work_per_frame
 
 	-- Run realtime tasks with no cap on work per frame
-	local _, work_done = runq_steps(data.rq_realtime, 1, BIG_INT, tick, 1)
+	local _, work_done =
+		runq_steps(data.rq_realtime, 1, REALTIME_WORK_CAP, tick, 1)
 
 	-- Run normal tasks with the remaining work cap
 	work_cap = work_cap - work_done
