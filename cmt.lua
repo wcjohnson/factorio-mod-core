@@ -221,6 +221,18 @@ end)
 -- Task Control
 --------------------------------------------------------------------------------
 
+---@param task_id Core.CMT.TaskID?
+---@return Core.CMT.Task? The task with the given ID, or nil if no such task exists.
+function lib.get(task_id)
+	if not task_id then return nil end
+	local task = get_cmt_storage().tasks[task_id]
+	if (not task) or task._cmt_dead then return nil end
+	return task
+end
+
+---@return table<Core.CMT.TaskID, Core.CMT.Task> tasks The set of all tasks.
+function lib.get_tasks() return get_cmt_storage().tasks end
+
 ---Yield the current task, allowing other tasks to run this frame instead. Note that calling this on a task that is not currently running will have no effect.
 ---@param task Core.CMT.Task The task to yield.
 function lib.yield(task) task._cmt_yielded = true end
