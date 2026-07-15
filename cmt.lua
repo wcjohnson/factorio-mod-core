@@ -98,22 +98,23 @@ end
 ---@param task Core.CMT.Task? Task at the head of the runqueue. If nil, the runqueue is empty.
 ---@param tick uint64 The current tick.
 ---@return boolean advance `true` if we should advance the pointer to the next task
+---@return boolean ran `true` if the task mainloop ran, `false` if task was sleeping, dead, or skipped.
 ---@return number work_done The amount of work done in this iteration.
 local function runq_step_task(task, tick)
-	if not task then return false, 0 end
-	if task._cmt_dead or not task._cmt_awake then return true, 0 end
+	if not task then return false, false, 0 end
+	if task._cmt_dead or not task._cmt_awake then return true, false, 0 end
 	local work_current, work_cap =
 		task._cmt_work_current or 0, max(task._cmt_work_cap or 1, 1)
-	if work_current >= work_cap then return true, 0 end
+	if work_current >= work_cap then return true, false, 0 end
 	task._cmt_yielded = nil
 	local work_done = max(task:main() or 0, 1)
 	update_era_counter(task._cmt_work_per_iter, work_done)
 	work_current = work_current + work_done
 	task._cmt_work_current = work_current
 	if (work_current >= work_cap) or task._cmt_yielded then
-		return true, work_done
+		return true, true, work_done
 	end
-	return false, work_done
+	return false, true, work_done
 end
 
 ---@param runq Core.CMT.Task[]
@@ -132,18 +133,29 @@ end
 
 ---@param runq Core.CMT.Task[]
 ---@param pointer uint The index of the task to start from.
+---@param work_done number The amount of work done so far in this frame.
 ---@param work_cap number The maximum amount of work to do.
 ---@param tick uint64 The current tick.
 ---@param total_cycles uint The number of additional cycles to allow after the runqueue has been exhausted.
 ---@return uint next_pointer The index of the next task to run.
 ---@return number work_done The amount of work done in all executed steps.
-local function runq_steps(runq, pointer, work_cap, tick, total_cycles)
-	local work_done = 0.0
+local function runq_steps(
+	runq,
+	pointer,
+	work_done,
+	work_cap,
+	tick,
+	total_cycles
+)
+	if #runq == 0 then return 1, work_done end
 	local cycles = 1
 	local task = runq[pointer]
-	if task then task._cmt_work_current = 0 end
 	while work_done < work_cap do
-		local advance, work = runq_step_task(task, tick)
+		-- Normalize task
+		if task and not task._cmt_work_current then task._cmt_work_current = 0 end
+
+		-- Step task
+		local advance, ran, work = runq_step_task(task, tick)
 		work_done = work_done + work
 		if advance then
 			-- XXX: TYPES: uint cast probably needed because of overflow??
@@ -193,13 +205,18 @@ local function scheduler_tick(tick_data)
 
 	-- Run realtime tasks with no cap on work per frame
 	local _, work_done =
-		runq_steps(data.rq_realtime, 1, REALTIME_WORK_CAP, tick, 1)
+		runq_steps(data.rq_realtime, 1, 0, REALTIME_WORK_CAP, tick, 1)
 
 	-- Run normal tasks with the remaining work cap
-	work_cap = work_cap - work_done
-	if work_cap > 0 then
-		local next_pointer =
-			runq_steps(data.rq_normal, data.rq_normal_pointer, work_cap, tick, 2)
+	if work_done < work_cap then
+		local next_pointer = runq_steps(
+			data.rq_normal,
+			data.rq_normal_pointer,
+			work_done,
+			work_cap,
+			tick,
+			2
+		)
 		data.rq_normal_pointer = next_pointer
 	end
 end
