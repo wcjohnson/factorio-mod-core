@@ -1,5 +1,9 @@
 local tlib = require("lib.core.table")
 
+local select = select
+local type = type
+local getmetatable = getmetatable
+
 local lib = {}
 
 local registered_metatables = {}
@@ -30,6 +34,26 @@ function lib.class(name, ...)
 		registered_metatables[name] = mt
 	end
 	return mt
+end
+
+---Determine if an object is an instance of a class defined by `class`
+---@param obj any
+---@param mt table #Class metatable
+function lib.instanceof(obj, mt)
+	if type(obj) ~= "table" then return false end
+	local obj_mt = getmetatable(obj)
+	local n = 0
+	while obj_mt do
+		if obj_mt == mt then return true end
+		obj_mt = getmetatable(obj_mt)
+		n = n + 1
+		if n > 100 then
+			error(
+				"Instanceof recursion max reached. Possible circular metatable reference"
+			)
+		end
+	end
+	return false
 end
 
 return lib
