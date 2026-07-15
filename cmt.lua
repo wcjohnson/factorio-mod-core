@@ -39,6 +39,7 @@ local lib = {}
 ---@field public _cmt_name? string An optional friendly name for debugging purposes
 ---@field public _cmt_work_current number The amount of current sequential work done by this task.
 ---@field public _cmt_work_cap? number Maximum workload this task can consume sequentially. The task's main loop will be re-entered until this cap is reached. If not given, 0, or negative, the task will yield after each iteration of its main loop.
+---@field public _cmt_spike_cap? number If this task consumes more than this workload in a single iteration, it will yield. There is no cap if this is nil, 0, or negative.
 ---@field public _cmt_work_per_iter Core.EraCounter ERA work per iteration of mainloop.
 ---@field public _cmt_debug_paused? boolean Whether the task is paused for debugging purposes
 ---@field public _cmt_debug_stepped? boolean Whether the task should execute one step while paused for debugging purposes
@@ -76,7 +77,7 @@ local function init_cmt_storage()
 		wake_at = {},
 		rq_normal = {},
 		rq_normal_pointer = 1,
-		max_work_per_frame = 250,
+		max_work_per_frame = 100,
 	}
 	---@diagnostic disable-next-line: inject-field
 	storage._cmt = data
@@ -101,17 +102,44 @@ end
 ---@return boolean ran `true` if the task mainloop ran, `false` if task was sleeping, dead, or skipped.
 ---@return number work_done The amount of work done in this iteration.
 local function runq_step_task(task, tick)
+	-- Check for nil, dead, sleeping
 	if not task then return false, false, 0 end
 	if task._cmt_dead or not task._cmt_awake then return true, false, 0 end
+
+	-- Compute caps
 	local work_current, work_cap =
 		task._cmt_work_current or 0, max(task._cmt_work_cap or 1, 1)
 	if work_current >= work_cap then return true, false, 0 end
+	local spike_cap = task._cmt_spike_cap or BIG_INT
+	if spike_cap < 1 then spike_cap = BIG_INT end
+
+	-- Exec
 	task._cmt_yielded = nil
 	local work_done = max(task:main() or 0, 1)
+
+	-- Determine stats
 	update_era_counter(task._cmt_work_per_iter, work_done)
 	work_current = work_current + work_done
 	task._cmt_work_current = work_current
-	if (work_current >= work_cap) or task._cmt_yielded then
+
+	if work_done >= spike_cap then
+		strace.warn(
+			"Task",
+			task._cmt_name or task._cmt_id,
+			"exceeded spike cap of",
+			spike_cap,
+			"with",
+			work_done,
+			"work done"
+		)
+	end
+
+	-- Determine whether to yield
+	if
+		task._cmt_yielded
+		or (work_current >= work_cap)
+		or (work_done >= spike_cap)
+	then
 		return true, true, work_done
 	end
 	return false, true, work_done
@@ -152,16 +180,20 @@ local function runq_steps(
 	local task = runq[pointer]
 	while work_done < work_cap do
 		-- Normalize task
-		if task and not task._cmt_work_current then task._cmt_work_current = 0 end
+		if task and not task._cmt_work_current then
+			strace.warn("Task had no work_current", task._cmt_name or task._cmt_id)
+			task._cmt_work_current = 0
+		end
 
 		-- Step task
 		local advance, ran, work = runq_step_task(task, tick)
 		work_done = work_done + work
 		if advance then
-			-- XXX: TYPES: uint cast probably needed because of overflow??
+			-- Cleanup task that ran
+			if task then task._cmt_work_current = 0 end
+
 			pointer = (pointer + 1) --[[@as uint]]
 			task = runq[pointer]
-			if task then task._cmt_work_current = 0 end
 		end
 		if not task then
 			-- Queue finished
@@ -172,7 +204,6 @@ local function runq_steps(
 				cycles = cycles + 1
 				pointer = 1
 				task = runq[pointer]
-				if task then task._cmt_work_current = 0 end
 			end
 		end
 	end
