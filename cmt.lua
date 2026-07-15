@@ -122,18 +122,6 @@ local function runq_step_task(task, tick)
 	work_current = work_current + work_done
 	task._cmt_work_current = work_current
 
-	if work_done >= spike_cap then
-		strace.warn(
-			"Task",
-			task._cmt_name or task._cmt_id,
-			"exceeded spike cap of",
-			spike_cap,
-			"with",
-			work_done,
-			"work done"
-		)
-	end
-
 	-- Determine whether to yield
 	if
 		task._cmt_yielded
