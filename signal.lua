@@ -240,6 +240,21 @@ local function key_is_virtual(key)
 end
 lib.key_is_virtual = key_is_virtual
 
+---Convert an array of `Signal` to a `SignalCounts` mapping.
+---If multiple signals have the same key, their counts are summed.
+---@param signals Signal[]
+---@return SignalCounts
+function lib.signals_to_counts(signals)
+	---@type SignalCounts
+	local counts = {}
+	for i = 1, #signals do
+		local sig = signals[i]
+		local key = signal_to_key(sig.signal)
+		counts[key] = (counts[key] or 0) + sig.count
+	end
+	return counts
+end
+
 ---Spread SignalCounts into two arrays: one of SignalIDs and one of counts.
 ---@param signal_counts SignalCounts
 ---@return SignalID[] signals
