@@ -232,7 +232,7 @@ local __EVENT_SINK__
 
 ---@alias Relm.Children Relm.Node|Relm.Node[]|nil
 
----@alias Relm.RenderFn fun(props: Relm.Props): Relm.Children | Relm.Children[]
+---@alias Relm.RenderFn<PropsT = Relm.Props> fun(props: PropsT): Relm.Children | Relm.Children[]
 
 ---@alias Relm.QueryResponse string|number|int|boolean|table|nil
 
@@ -252,7 +252,7 @@ local __EVENT_SINK__
 
 ---@alias Relm.Element.StateDefinition fun(initial_props: Relm.Props): Relm.State
 
----@alias Relm.NodeFactory fun(props?: Relm.Props, children?: Relm.MaybeNode[]): Relm.Node
+---@alias Relm.NodeFactory<PropsT = Relm.Props> fun(props: PropsT, children?: Relm.MaybeNode[]): Relm.Node
 
 ---@alias Relm.Element.QueryHandlerDefinition fun(me: Relm.Handle, payload: Relm.MessagePayload, props: Relm.Props, state?: Relm.State): boolean, Relm.QueryResponse?, Relm.QueryTag?
 
@@ -1980,9 +1980,10 @@ function lib.define_element(definition)
 end
 
 ---Define a new Relm element.
+---@generic PropsT
 ---@param name string The name of the element. Must be unique across all Relm element definitions.
----@param render Relm.RenderFn The render function for this element.
----@return Relm.NodeFactory #A factory function that creates a node of this type.
+---@param render Relm.RenderFn<PropsT> The render function for this element.
+---@return Relm.NodeFactory<PropsT> #A factory function that creates a node of this type.
 function lib.define(name, render)
 	return lib.define_element({
 		name = name,
