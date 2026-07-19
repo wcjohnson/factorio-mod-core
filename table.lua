@@ -299,11 +299,11 @@ function lib.flat_map(A, f)
 end
 
 ---Return an array containing the keys of the given table.
----@generic K
----@param T { [K]: any }
+---@generic K, V
+---@param T table<K, V> 
 ---@return K[]
 function lib.keys(T)
-	local A = {}
+	local A = {} 
 	for k in pairs(T) do
 		A[#A + 1] = k
 	end
