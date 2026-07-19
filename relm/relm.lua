@@ -1411,7 +1411,7 @@ local function vimpl_msg_or_query(vnode, payload, base_key, prop_key)
 		return base_handler(
 			vnode --[[@as Relm.Handle]],
 			payload,
-			props,
+			props or {},
 			vnode.state
 		)
 	end
@@ -2178,7 +2178,9 @@ end
 ---Use the result of calling a function. This can be used to lift gamestate
 ---queries out of the render loop. Hydrating renders will return a memoized
 ---value from the previous render, and will not call the `calculate` function.
----@param calculate fun(): any A function that calculates an arbitrary value. (The return value of this function is placed in `storage` and must be serializable.)
+---@generic T
+---@param calculate fun(): T A function that calculates an arbitrary value. (The return value of this function is placed in `storage` and must be serializable.)
+---@return T result The result of the calculation.
 function lib.use_result(calculate)
 	local node, index, last_value = setup_hook()
 	if render_is_hydrating then
