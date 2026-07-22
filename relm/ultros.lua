@@ -814,23 +814,28 @@ lib.RadioButtons = relm.define_element({
 	end,
 })
 
-local function selected_tab_query_handler(me, payload, props)
-	if payload.key == "selected_tab" and me.elem then
-		return true, me.elem.selected_tab_index
-	end
-	return false
-end
-
 lib.TabbedPane = relm.define_element({
 	name = "ultros.TabbedPane",
-	render = function(props, state)
-		local selected_tab = (state or empty).selected_tab
+	render = function(props)
+		local selected_tab, set_selected_tab = relm.use_state(1)
 		local passed_props = assign({}, props)
 		passed_props.type = "tabbed-pane"
 		passed_props.listen = true
 		passed_props.selected_tab_index = selected_tab
-		passed_props.query_handler = selected_tab_query_handler
 		passed_props.tabs = nil
+		local tabbed_pane_ref
+		passed_props.ref = function(r) tabbed_pane_ref = r end
+
+		relm_util.use_event_handler(
+			defines.events.on_gui_selected_tab_changed,
+			function(me, _, ev)
+				---@cast ev EventData.on_gui_selected_tab_changed
+				if ev.element == tabbed_pane_ref then
+					local idx = ev.element.selected_tab_index
+					set_selected_tab(idx)
+				end
+			end
+		)
 
 		local children = {}
 		for i, tab in ipairs(props.tabs) do
@@ -849,23 +854,6 @@ lib.TabbedPane = relm.define_element({
 		end
 		return Pr(passed_props, children)
 	end,
-	message = function(me, payload, props)
-		if payload.key == "factorio_event" then
-			if payload.name == defines.events.on_gui_selected_tab_changed then
-				local _, index =
-					relm.query_broadcast(me, { key = "selected_tab" }, true)
-				relm.set_state(me, {
-					selected_tab = index,
-				})
-			end
-			return true
-		end
-		return false
-	end,
-	state = function(props)
-		---@diagnostic disable-next-line: return-type-mismatch
-		return { selected_tab = props.initial_selected_tab or 1 }
-	end,
 })
 
 ---Ensures that tabs that are not selected have their Relm elements removed
@@ -874,11 +862,12 @@ lib.TabbedPane = relm.define_element({
 lib.HiddenTabRemover = relm.define_element({
 	name = "ultros.HiddenTabRemover",
 	render = function(props)
-		if props.selected then
-			return props.content
-		else
-			return Pr({ type = "empty-widget" })
-		end
+		return VF({
+			horizontally_stretchable = true,
+			vertically_stretchable = true,
+		}, {
+			lib.CallIf(props.selected, props.generate_content),
+		})
 	end,
 })
 
