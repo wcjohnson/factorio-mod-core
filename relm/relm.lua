@@ -791,13 +791,14 @@ local function vget_props(vnode) return vprops[vnode] end
 
 ---Destroy target element in this context (not necessarily the
 ---current element.)
----@param context Relm.Internal.PaintContext
+---@param context Relm.Internal.PaintContext?
+---@param root_id Relm.RootId?
 ---@param elem LuaGuiElement
-local function vpaint_element_destroy(context, elem)
-	local root = storage._relm.roots[context.root_id] --[[@as Relm.Internal.Root]]
+local function vpaint_element_destroy(context, root_id, elem)
+	local root = storage._relm.roots[root_id or context.root_id] --[[@as Relm.Internal.Root]]
 	root.index_to_vnode[elem.index] = nil
 	elem.destroy()
-	context.structure_changed = true
+	if context then context.structure_changed = true end
 end
 
 ---@param context Relm.Internal.PaintContext
@@ -805,11 +806,11 @@ local function vpaint_context_destroy(context)
 	local elem = context.elem
 	if elem and elem.valid then
 		if context.rendered_elem then
-			vpaint_element_destroy(context, context.rendered_elem)
+			vpaint_element_destroy(context, nil, context.rendered_elem)
 			if context.ref then context.ref(nil) end
 		elseif context.index then
 			local child = elem.children[context.index]
-			if child then return vpaint_element_destroy(context, child) end
+			if child then return vpaint_element_destroy(context, nil, child) end
 		end
 	end
 end
@@ -1113,7 +1114,7 @@ local function vpaint(vnode, context, same)
 			-- Prune children beyond those rendered.
 			local echildren = elem.children
 			for i = child_context.index, #echildren do
-				vpaint_element_destroy(context, echildren[i])
+				vpaint_element_destroy(child_context, nil, echildren[i])
 			end
 			if
 				elem.type == "tabbed-pane"
@@ -1125,7 +1126,7 @@ local function vpaint(vnode, context, same)
 		else
 			local echildren = elem.children
 			for i = 1, #echildren do
-				vpaint_element_destroy(context, echildren[i])
+				vpaint_element_destroy(nil, context.root_id, echildren[i])
 			end
 			if elem.type == "tabbed-pane" then elem.remove_tab() end
 		end
