@@ -862,10 +862,15 @@ lib.TabbedPane = relm.define_element({
 lib.HiddenTabRemover = relm.define_element({
 	name = "ultros.HiddenTabRemover",
 	render = function(props)
-		return VF({
-			horizontally_stretchable = true,
-			vertically_stretchable = true,
-		}, {
+		local frame_props = props.container_props
+			or {
+				type = "frame",
+				direction = "vertical",
+				horizontally_stretchable = true,
+				vertically_stretchable = true,
+				style = "deep_frame_in_shallow_frame",
+			}
+		return Pr(frame_props, {
 			lib.CallIf(props.selected, props.generate_content),
 		})
 	end,

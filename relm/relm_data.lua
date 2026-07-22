@@ -525,6 +525,17 @@ styles.relm_tabbed_pane_with_no_padding = {
 	},
 }
 
+styles.relm_tabbed_pane = {
+	type = "tabbed_pane_style",
+	tab_content_frame = {
+		type = "frame_style",
+		parent = "tabbed_pane_frame",
+		left_padding = 12,
+		right_padding = 12,
+		bottom_padding = 8,
+	},
+}
+
 -- TEXTFIELD STYLES
 
 styles.relm_widthless_textfield = {
