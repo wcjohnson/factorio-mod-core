@@ -24,6 +24,7 @@ end
 ---@param x number New value to incorporate into the counter
 ---@return number
 function lib.update_era_counter(counter, x)
+	if counter == nil then return 0 end
 	local alpha = counter[2] or DEFAULT_ALPHA
 	local next = alpha * x + (1 - alpha) * counter[1]
 	counter[1] = next
