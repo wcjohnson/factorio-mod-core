@@ -209,7 +209,7 @@ end
 
 ---Find the first entry in a table matching the given predicate.
 ---@generic K, V
----@param T {[K]: V}
+---@param T {[K]: V} | table<K, V>
 ---@param f fun(value: V, key: K): boolean?
 ---@return V? value The value of the first matching entry, or `nil` if none was found
 ---@return K? key The key of the first matching entry, or `nil` if none was found
@@ -222,9 +222,9 @@ end
 ---Map a table into an array. Non-nil results of the mapping function
 ---will be collected into a new result array.
 ---@generic K, V, O
----@param T {[K] : V}
+---@param T {[K] : V} | table<K, V>
 ---@param f fun(value: V, key: K): O?
----@return O[]
+---@return (std.NotNull<O>)[]
 function lib.t_map_a(T, f)
 	local A = {}
 	for k, v in pairs(T) do
@@ -300,10 +300,10 @@ end
 
 ---Return an array containing the keys of the given table.
 ---@generic K, V
----@param T table<K, V> 
+---@param T table<K, V>
 ---@return K[]
 function lib.keys(T)
-	local A = {} 
+	local A = {}
 	for k in pairs(T) do
 		A[#A + 1] = k
 	end
