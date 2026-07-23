@@ -314,4 +314,14 @@ function lib.add(task)
 	end
 end
 
+---@return number max_work The target maximum amount of work to be done per frame across all tasks.
+function lib.get_max_work_per_frame()
+	return get_cmt_storage().max_work_per_frame
+end
+
+---@param max_work number The target maximum amount of work to be done per frame across all tasks.
+function lib.set_max_work_per_frame(max_work)
+	get_cmt_storage().max_work_per_frame = max_work
+end
+
 return lib
