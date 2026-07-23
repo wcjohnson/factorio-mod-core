@@ -162,4 +162,20 @@ function lib.use_timer_handler(period, handler)
 	end, use_timer_unbinder)
 end
 
+--------------------------------------------------------------------------------
+-- Throttled Paint
+--------------------------------------------------------------------------------
+
+---@param dt uint Minimum number of ticks between repaints
+function lib.use_throttled_repaint(dt)
+	local render_tick, set_render_tick = relm.use_state(0)
+
+	local function repaint()
+		local tick = game and game.tick or 0
+		if tick - render_tick >= dt then set_render_tick(tick) end
+	end
+
+	return repaint
+end
+
 return lib
