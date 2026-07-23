@@ -310,6 +310,21 @@ function lib.keys(T)
 	return A
 end
 
+---Return the keys and table size of the given table
+---@generic K, V
+---@param T table<K, V> | {[K]: V}
+---@return K[]
+---@return uint
+function lib.keys_n(T)
+	local A = {}
+	local n = 0
+	for k in pairs(T) do
+		A[#A + 1] = k
+		n = n + 1
+	end
+	return A, n
+end
+
 ---Fisher-Yates shuffle an array in place.
 ---@generic T
 ---@param A T[]
