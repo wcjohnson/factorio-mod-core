@@ -25,8 +25,9 @@ lib.EMPTY_STRICT = setmetatable({}, {
 ---@param B any[]
 ---@return boolean
 function lib.a_eqeq(A, B)
-	if #A ~= #B then return false end
-	for i = 1, #A do
+	local nA = #A
+	if nA ~= #B then return false end
+	for i = 1, nA do
 		if A[i] ~= B[i] then return false end
 	end
 	return true
@@ -62,7 +63,7 @@ end
 ---Shallowly copies each given table into `dest`, returning `dest`.
 ---@generic K, V, T extends {[K]: V} | table<K, V>
 ---@param dest T
----@param ... {[K]: V} | table<K, V> | nil
+---@param ... ({[K]: V} | table<K, V> | nil)
 ---@return T dest
 local function assign(dest, ...)
 	local n = select("#", ...)
@@ -90,11 +91,13 @@ function lib.shallow_copy(t) return assign({}, t) end
 ---@return T[]
 function lib.concat(...)
 	local A = {}
+	local nA = 0
 	for i = 1, select("#", ...) do
 		local B = select(i, ...)
 		if B ~= nil then
 			for j = 1, #B do
-				A[#A + 1] = B[j]
+				nA = nA + 1
+				A[nA] = B[j]
 			end
 		end
 	end
@@ -106,7 +109,7 @@ end
 ---filter function returns true will be included in the result.
 ---@generic T
 ---@param f fun(value: T, index: integer): boolean
----@param ... T[][]
+---@param ... T[]
 ---@return T[]
 function lib.concat_filter(f, ...)
 	local A = {}
@@ -128,9 +131,13 @@ end
 ---@param ... T?
 ---@return T[]
 function lib.append(A, ...)
+	local nA = #A
 	for i = 1, select("#", ...) do
 		local value = select(i, ...)
-		if value ~= nil then A[#A + 1] = value end
+		if value ~= nil then
+			nA = nA + 1
+			A[nA] = value
+		end
 	end
 	return A
 end
@@ -142,8 +149,12 @@ end
 ---@return T[] #A new array containing all elements of `A` for which the predicate returned true.
 local function filter(A, f)
 	local B = {}
+	local n = 0
 	for i = 1, #A do
-		if f(A[i], i) then B[#B + 1] = A[i] end
+		if f(A[i], i) then
+			n = n + 1
+			B[n] = A[i]
+		end
 	end
 	return B
 end
@@ -157,11 +168,14 @@ lib.filter = filter
 ---@return T[] #an array containing all elements of `A` for which the predicate returned false.
 function lib.split(A, f)
 	local T, F = {}, {}
+	local nT, nF = 0, 0
 	for i = 1, #A do
 		if f(A[i], i) then
-			T[#T + 1] = A[i]
+			nT = nT + 1
+			T[nT] = A[i]
 		else
-			F[#F + 1] = A[i]
+			nF = nF + 1
+			F[nF] = A[i]
 		end
 	end
 	return T, F
@@ -175,9 +189,13 @@ end
 ---@return O[]
 function lib.map(A, f)
 	local B = {}
+	local n = 0
 	for i = 1, #A do
 		local x = f(A[i], i)
-		if x ~= nil then B[#B + 1] = x end
+		if x ~= nil then
+			n = n + 1
+			B[n] = x
+		end
 	end
 	return B
 end
@@ -191,8 +209,10 @@ end
 ---@return T[]
 function lib.map_range(min, max, step, f)
 	local A = {}
+	local n = 0
 	for i = min, max, step do
-		A[#A + 1] = f(i)
+		n = n + 1
+		A[n] = f(i)
 	end
 	return A
 end
@@ -227,11 +247,35 @@ end
 ---@return (std.NotNull<O>)[]
 function lib.t_map_a(T, f)
 	local A = {}
+	local n = 0
 	for k, v in pairs(T) do
 		local x = f(v, k)
-		if x ~= nil then A[#A + 1] = x end
+		if x ~= nil then
+			n = n + 1
+			A[n] = x
+		end
 	end
 	return A
+end
+
+---Map a table into an array. Non-nil results of the mapping function
+---will be collected into a new result array.
+---@generic K, V, O
+---@param T {[K] : V} | table<K, V>
+---@param f fun(value: V, key: K): O?
+---@return (std.NotNull<O>)[]
+---@return integer n The number of elements in the result array.
+function lib.t_map_an(T, f)
+	local A = {}
+	local n = 0
+	for k, v in pairs(T) do
+		local x = f(v, k)
+		if x ~= nil then
+			n = n + 1
+			A[n] = x
+		end
+	end
+	return A, n
 end
 
 ---Map a table into another table. The mapping function should return
@@ -287,11 +331,13 @@ end
 ---@return O[]
 function lib.flat_map(A, f)
 	local B = {}
+	local nB = 0
 	for i = 1, #A do
 		local C = f(A[i])
 		if C then
 			for j = 1, #C do
-				B[#B + 1] = C[j]
+				nB = nB + 1
+				B[nB] = C[j]
 			end
 		end
 	end
@@ -304,8 +350,10 @@ end
 ---@return K[]
 function lib.keys(T)
 	local A = {}
+	local nA = 0
 	for k in pairs(T) do
-		A[#A + 1] = k
+		nA = nA + 1
+		A[nA] = k
 	end
 	return A
 end
@@ -319,8 +367,8 @@ function lib.keys_n(T)
 	local A = {}
 	local n = 0
 	for k in pairs(T) do
-		A[#A + 1] = k
 		n = n + 1
+		A[n] = k
 	end
 	return A, n
 end
@@ -342,11 +390,12 @@ end
 ---pre-sorted on a particular key. The iterator returns subranges of the
 ---array with equal keys.
 function lib.groups(A, key)
+	local nA = #A
 	return function(k, i)
-		if i > #A then return nil end
+		if i > nA then return nil end
 		local start = i
 		local current = A[i][k]
-		while i <= #A and A[i][k] == current do
+		while i <= nA and A[i][k] == current do
 			i = i + 1
 		end
 		return i, start, i - 1
@@ -426,8 +475,9 @@ end
 ---@param i uint
 local function irnext(a, i)
 	i = i + 1
-	if i <= #a then
-		local r = a[#a - i + 1]
+	local nA = #a
+	if i <= nA then
+		local r = a[nA - i + 1]
 		return i, r
 	else
 		return nil, nil
@@ -446,13 +496,14 @@ function lib.irpairs(a) return irnext, a, 0 end
 ---@return T[] A The filtered array.
 function lib.filter_in_place(A, f)
 	local j = 1
-	for i = 1, #A do
+	local nA = #A
+	for i = 1, nA do
 		if f(A[i], i) then
 			A[j] = A[i]
 			j = j + 1
 		end
 	end
-	for i = #A, j, -1 do
+	for i = nA, j, -1 do
 		A[i] = nil
 	end
 	return A
