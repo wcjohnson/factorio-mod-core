@@ -957,17 +957,22 @@ local function paint_buttons(elem, primitive_props, get_event_tags)
 	---@param style? string
 	local function add_button(style)
 		-- XXX: TYPES: FMTK LuaGuiElement.add_param bug
+		---@diagnostic disable-next-line: param-type-mismatch
 		local button = elem.add({
 			type = "choose-elem-button",
 			elem_type = "signal",
 			style = style or default_style,
 		})
+		-- XXX: TYPES: FMTK LuaGuiElement.add_param bug
+		---@diagnostic disable-next-line: param-type-mismatch
 		button.add({
 			type = "label",
 			style = "relm_label_signal_count",
 			ignored_by_interaction = true,
 		})
 		if uppers then
+			-- XXX: TYPES: FMTK LuaGuiElement.add_param bug
+			---@diagnostic disable-next-line: param-type-mismatch
 			local upper_label = button.add({
 				type = "label",
 				style = "relm_label_signal_count",

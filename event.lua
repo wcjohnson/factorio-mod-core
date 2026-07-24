@@ -366,7 +366,6 @@ event.bind(
 
 event.bind("on_startup", function(reset_data)
 	---@diagnostic disable-next-line: undefined-field
-	-- TODO: warn if mods didn't clear dynamic binds before resetting
 	if storage._event and next(storage._event) then
 		strace.warn(
 			"Warning: dynamic event bindings exist at startup. You should clear dynamic bindings during shutdown to avoid lingering state."

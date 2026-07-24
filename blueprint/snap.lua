@@ -68,7 +68,6 @@ local function snap_1x1(bbox, pos)
 end
 lib.snap_1x1 = snap_1x1
 
--- TODO: This is a copypasta to avoid circular deps. Refactor later.
 local function get_blueprint_entity_pos(
 	bp_entity,
 	bp_center,

@@ -106,12 +106,8 @@ function BlueprintGeometry:compute_bbox()
 	local entities = self.entities
 	local e1 = entities[1] --[[@as Core.BlueprintEntityGeometry]]
 	local e1x, e1y = pos_get(e1.position)
-	-- XXX: TYPES: FMTK vector types bug
-	---@diagnostic disable-next-line: missing-fields
 	---@type BoundingBox
 	local bpspace_bbox = { { e1x, e1y }, { e1x, e1y } }
-	-- XXX: TYPES: FMTK vector types bug
-	---@diagnostic disable-next-line: missing-fields
 	---@type BoundingBox
 	local pos_bbox = { { e1x, e1y }, { e1x, e1y } }
 
@@ -170,8 +166,6 @@ function BlueprintGeometry:compute_bbox()
 
 	self.bpspace_bbox = bpspace_bbox
 	local l2, t2, r2, b2 = bbox_get(bpspace_bbox)
-	-- XXX: TYPES: FMTK vector types bug
-	---@diagnostic disable-next-line: missing-fields
 	self.bpspace_center = { (l2 + r2) / 2, (t2 + b2) / 2 }
 	strace.trace(
 		"BPLIB: BlueprintGeometry:compute_bbox: computed bpspace_bbox",

@@ -742,7 +742,7 @@ end
 vhydrate = function(vnode, node)
 	-- TODO: any of these conditions will break all relm guis after a save/rl
 	-- how to best notify user?
-	-- TODO: we should probably panic by destroying the associated root altogether which is most likely the correct behavior.
+	-- we should probably panic by destroying the associated root altogether which is most likely the correct behavior.
 	if not node or not vnode or not node.props or node.type ~= vnode.type then
 		if strace then
 			strace(
@@ -846,6 +846,7 @@ local function vpaint_context_create(context, props)
 		end
 
 		-- XXX: TYPES: FMTK LuaGuiElement add_param bug
+		---@diagnostic disable-next-line: param-type-mismatch
 		new_elem = elem.add(addable_props)
 		-- Entities for entity-preview can only be set after creation.
 		if props.entity and props.entity.valid then

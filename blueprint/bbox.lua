@@ -52,12 +52,8 @@ function lib.get_blueprint_bbox(bp_entities, entity_bounding_boxes)
 
 	local e1 = bp_entities[1] --[[@as BlueprintEntity]]
 	local e1x, e1y = pos_get(e1.position)
-	-- XXX: TYPES: FMTK vector types bug
-	---@diagnostic disable-next-line: missing-fields
 	---@type BoundingBox
 	local bpspace_bbox = { { e1x, e1y }, { e1x, e1y } }
-	-- XXX: TYPES: FMTK vector types bug
-	---@diagnostic disable-next-line: missing-fields
 	---@type BoundingBox
 	local pos_bbox = { { e1x, e1y }, { e1x, e1y } }
 
