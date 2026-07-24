@@ -1,4 +1,3 @@
----@diagnostic disable: inject-field
 --------------------------------------------------------------------------------
 -- STRUCTURED TRACING
 -- A simple, low cost logging, debugging, and stats library based on
@@ -25,6 +24,12 @@
 -- well as a default global driver for handling them. It is NOT necessary to
 -- use this library in order for your own mod to use or display straces.
 --------------------------------------------------------------------------------
+
+---@class Core.StraceStorage
+---@field public _LOG_LEVEL int The current log level. Messages below this level are discarded.
+
+---@type Core.StraceStorage
+storage = storage --[[@as Core.StraceStorage]]
 
 local format_tick_relative =
 	require("lib.core.math.numeric").format_tick_relative
@@ -56,6 +61,7 @@ lib.STATS = STATS
 lib.WARN = WARN
 lib.ERROR = ERROR
 lib.MAX_LEVEL = 1000
+lib.NONE = 1001
 
 local level_to_string = {
 	[lib.TRACE] = "TRACE",
@@ -144,10 +150,12 @@ local function get_trailing_message(stringify, ...)
 	else
 		-- General case
 		local accum = {}
+		local an = 0
 		for i = 2, n do
 			local arg = select(i, ...)
 			if type(arg) == "function" then arg = arg() end
-			accum[#accum + 1] = stringify(arg)
+			an = an + 1
+			accum[an] = stringify(arg)
 		end
 		return tconcat(accum, " ")
 	end
@@ -248,9 +256,11 @@ function lib.prettify(val) return stringify_with(val, serpent_block) end
 function lib.message_to_string(...)
 	local n = select("#", ...)
 	local accum = {}
+	local an = 0
 	for i = 1, n do
 		local arg = select(i, ...)
-		accum[#accum + 1] = stringify_with(arg, serpent_line)
+		an = an + 1
+		accum[an] = stringify_with(arg, serpent_line)
 	end
 	return tconcat(accum)
 end
@@ -296,9 +306,6 @@ function lib.filter(is_whitelist, filters, ...)
 	end
 end
 
--- Inform typechecking that _LOG_LEVEL is an integer.
-storage._LOG_LEVEL = 0
-
 function lib.standard_log_handler(level, ...)
 	-- Authorized storage injection
 	---@diagnostic disable-next-line: undefined-field
@@ -308,7 +315,7 @@ function lib.standard_log_handler(level, ...)
 	if game then frame = game.ticks_played end
 	local cat_tbl = {
 		"[",
-		script.mod_name,
+		script and script.mod_name or "(shared VM)",
 		"::",
 		frame,
 		format_tick_relative(frame, 0),
@@ -331,6 +338,22 @@ function lib.standard_log_handler(level, ...)
 		end
 	end, level, ...)
 	log(tconcat(cat_tbl, " "))
+end
+
+---@param level_name "TRACE"|"DEBUG"|"INFO"|"STATS"|"WARN"|"ERROR"
+function lib.set_log_level_name(level_name)
+	local level = lib[level_name]
+	if type(level) ~= "number" then
+		error("Invalid log level name: " .. tostring(level_name))
+	end
+	storage._LOG_LEVEL = level
+	log({
+		"",
+		"[STRACE: ",
+		script and script.mod_name or "(shared VM)",
+		"] Log level set to ",
+		level_name,
+	})
 end
 
 return lib
