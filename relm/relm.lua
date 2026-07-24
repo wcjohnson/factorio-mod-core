@@ -1,16 +1,14 @@
----@diagnostic disable: inject-field
-
-local tremove = _G.table.remove
-local type = _G.type
-local min = _G.math.min
-local error = _G.error
-local strfind = _G.string.find
-local pairs = _G.pairs
-local setmetatable = _G.setmetatable
+local tremove = table.remove
+local type = type
+local min = math.min
+local error = error
+local strfind = string.find
+local pairs = pairs
+local setmetatable = setmetatable
 
 ---@class Relm.Lib
 local lib = {}
-_G.__RELM__ = lib
+__RELM__ = lib
 
 local EMPTY = setmetatable({}, { __newindex = function() end })
 
@@ -205,15 +203,6 @@ local __EVENT_SINK__
 ---values except through the associated APIs.
 ---@class (exact) Relm.Closure
 
----Definition of a reusable element distinguished by its name.
----@class (exact) Relm.ElementDefinition
----@field public name string The name of this element. Must be unique across the Lua state.
----@field public render Relm.Element.RenderDefinition Renders the element. Render MUST be a pure function of state, props, and authorized access to the `children` handle. It MUST NOT cause side effects!
----@field public factory? Relm.NodeFactory If given, this will replace the automatically generated factory function returned by `define_element`.
----@field public message? Relm.Element.MessageHandlerDefinition Defines the message handler for elements of this type. Message handlers may cause side effects.
----@field public state? Relm.Element.StateDefinition If given, determines the initial state from the element's initial props. (This is NOT required to use state, only if you want a non-`nil` initial state)
----@field public query? Relm.Element.QueryHandlerDefinition Defines the query handler for elements of this type. Query handlers MUST be pure functions of state, props, and other queries. They MUST NOT cause side effects!
-
 ---@alias Relm.MaybeNode Relm.Node|{}
 
 ---@alias Relm.RootId int
@@ -224,27 +213,36 @@ local __EVENT_SINK__
 
 ---@alias Relm.ManualPaintFn fun(elem: LuaGuiElement, props: Relm.Props)
 
----@alias Relm.Props {children?: Relm.Children, [string|int]:any}
+---@alias Relm.Props {children?: (Relm.Node|Relm.Node[]), [string|int]:any}
+
+---@alias Relm.RenderFn<PropsT = Relm.Props> fun(props: PropsT): (Relm.Node|Relm.Node[]|nil)
+
+---@alias Relm.NodeFactory<PropsT = Relm.Props> fun(props: PropsT, children?: Relm.MaybeNode[]): Relm.Node
+
+---@alias Relm.EffectKey Relm.Value|table<int|string, Relm.EffectKey>
+
+--------------------------------------------------------------------------------
+-- DEPRECATED PUBLIC TYPES
+--------------------------------------------------------------------------------
+
+---Definition of a reusable element distinguished by its name.
+---@class (exact) Relm.ElementDefinition
+---@field public name string The name of this element. Must be unique across the Lua state.
+---@field public render Relm.Element.RenderDefinition Renders the element. Render MUST be a pure function of state, props, and authorized access to the `children` handle. It MUST NOT cause side effects!
+---@field public factory? Relm.NodeFactory If given, this will replace the automatically generated factory function returned by `define_element`.
+---@field public message? Relm.Element.MessageHandlerDefinition Defines the message handler for elements of this type. Message handlers may cause side effects.
+---@field public state? Relm.Element.StateDefinition If given, determines the initial state from the element's initial props. (This is NOT required to use state, only if you want a non-`nil` initial state)
+---@field public query? Relm.Element.QueryHandlerDefinition Defines the query handler for elements of this type. Query handlers MUST be pure functions of state, props, and other queries. They MUST NOT cause side effects!
 
 ---@alias Relm.StateValue string|number|int|boolean|nil
 
 ---@alias Relm.State Relm.StateValue | {[string|int]: Relm.State}
 
----@alias Relm.Children Relm.Node|Relm.Node[]|nil
-
----@alias Relm.RenderFn<PropsT = Relm.Props> fun(props: PropsT): Relm.Children | Relm.Children[]
-
----@alias Relm.QueryResponse string|number|int|boolean|table|nil
-
----@alias Relm.QueryTag string|number|nil
-
----@alias Relm.EffectKey Relm.Value|table<int|string, Relm.EffectKey>
-
 ---@alias Relm.SendMessagePayload {key: string, [any]:any}
 
 ---@alias Relm.MessagePayload {key: string, propagation_mode: "bubble"|"broadcast"|"unicast", [any]:any}
 
----@alias Relm.Element.RenderDefinition fun(props: Relm.Props, state?: Relm.State): Relm.Children|Relm.Children[]
+---@alias Relm.Element.RenderDefinition fun(props: Relm.Props, state?: Relm.State): (Relm.Node|Relm.Node[]|nil)
 
 ---@alias Relm.Element.MessageHandlerDefinition fun(me: Relm.Handle, payload: Relm.MessagePayload, props: Relm.Props, state?: Relm.State): boolean
 
@@ -252,9 +250,11 @@ local __EVENT_SINK__
 
 ---@alias Relm.Element.StateDefinition fun(initial_props: Relm.Props): Relm.State
 
----@alias Relm.NodeFactory<PropsT = Relm.Props> fun(props: PropsT, children?: Relm.MaybeNode[]): Relm.Node
-
 ---@alias Relm.Element.QueryHandlerDefinition fun(me: Relm.Handle, payload: Relm.MessagePayload, props: Relm.Props, state?: Relm.State): boolean, Relm.QueryResponse?, Relm.QueryTag?
+
+---@alias Relm.QueryResponse string|number|int|boolean|table|nil
+
+---@alias Relm.QueryTag string|number|nil
 
 --------------------------------------------------------------------------------
 -- INTERNAL TYPES AND GLOBALS
@@ -282,6 +282,10 @@ local registry = {}
 ---@field public roots table<int, Relm.Internal.Root> Map from root ids to root data.
 ---@field public root_counter int Counter for generating new root ids.
 ---@field public reg_num_map table<uint64, int> Map from `script.register_on_object_destroyed` registration numbers to root ids, used to detect when a root element is destroyed.
+---@field public deferred_rn? int64 Registration number used in deferred render handler.
+
+---@type {_relm: Relm.Internal.Storage}
+storage = storage --[[@as {_relm: Relm.Internal.Storage} ]]
 
 ---Internal representation of a vtree node. This is stored in state.
 ---@class (exact) Relm.Internal.VNode
@@ -442,7 +446,7 @@ end
 ---@param index? int If given, search for this index in the cache rather than the elt's own index.
 local function get_vnode(elt, index)
 	if not elt or not elt.valid then return nil end
-	local root_id = elt.tags["__relm_root"]
+	local root_id = elt.tags["__relm_root"] --[[@as int?]]
 	if not root_id then
 		if strace then
 			strace(
@@ -520,9 +524,11 @@ local function normalized_render(
 		rendered_children = {}
 	elseif rendered_children.type then
 		-- single node, promote to array
-		rendered_children = { rendered_children }
+		---@type Relm.Node[]
+		local array_rendered_children = { rendered_children }
+		rendered_children = array_rendered_children
 	end
-	return rendered_children
+	return rendered_children --[[@as Relm.Node[] ]]
 end
 
 ---@param vnode Relm.Internal.VNode
@@ -795,6 +801,8 @@ local function vget_props(vnode) return vprops[vnode] end
 ---@param root_id Relm.RootId?
 ---@param elem LuaGuiElement
 local function vpaint_element_destroy(context, root_id, elem)
+	-- Nil check not needed; if root id is nil, context won't be.
+	---@diagnostic disable-next-line: need-check-nil
 	local root = storage._relm.roots[root_id or context.root_id] --[[@as Relm.Internal.Root]]
 	root.index_to_vnode[elem.index] = nil
 	elem.destroy()
@@ -1086,19 +1094,19 @@ local function vpaint(vnode, context, same)
 	elem.tags = tags
 
 	-- Handle `ref`s
-	if has_ref then props.ref(vnode.elem, vnode) end
+	if has_ref then props.ref(elem, vnode) end
 
 	if has_manual_paint then
 		-- Manual painted nodes are responsible for painting their children, so we don't recurse.
 		local root_id = context.root_id
-		local index = vnode.elem.index
+		local index = elem.index
 		local function get_event_tags()
 			return {
 				__relm_root = root_id,
 				[LISTEN_KEY] = index,
 			}
 		end
-		return props.manual_paint(vnode.elem, props, get_event_tags)
+		return props.manual_paint(elem, props, get_event_tags)
 	else
 		-- Handle children
 		local vchildren = vnode.children or EMPTY
@@ -1331,6 +1339,7 @@ local function defer_render_for_node(node)
 	end
 
 	-- If I or one of my parents is already dirty, no need to do anything.
+	---@type Relm.Internal.VNode?
 	local parent = node
 	while parent do
 		if dirty_nodes[parent] then return end
@@ -1895,7 +1904,8 @@ end
 ---@param id Relm.RootId?
 ---@return LuaGuiElement? root_element
 function lib.get_root_element(id)
-	local root = storage._relm.roots[id or ""] --[[@as Relm.Internal.Root? ]]
+	if not id then return nil end
+	local root = storage._relm.roots[id] --[[@as Relm.Internal.Root? ]]
 	if root then return root.root_element end
 end
 
@@ -1953,6 +1963,7 @@ function lib.is_valid(handle)
 end
 
 ---Define a new re-usable Relm element type.
+---@deprecated Prefer `relm.define` instead. This function will be removed in a future version.
 ---@param definition Relm.ElementDefinition
 ---@return Relm.NodeFactory #A factory function that creates a node of this type.
 function lib.define_element(definition)
@@ -1989,6 +2000,8 @@ end
 function lib.define(name, render)
 	return lib.define_element({
 		name = name,
+		-- XXX: TYPES: unknown assignment fail here, but the warning is spurious.
+		---@diagnostic disable-next-line: assign-type-mismatch
 		render = render,
 	})
 end
@@ -2032,13 +2045,15 @@ end
 
 ---Change the state of the Relm element with the given `handle`.
 ---@param handle Relm.Handle
----@param state? table|number|string|int|boolean|fun(current_state: Relm.State): Relm.State The new state, or an update function of the current state.
+---@param state? Relm.State|fun(current_state: Relm.State): Relm.State The new state, or an update function of the current state.
 ---@return nil
 function lib.set_state(handle, state)
 	---@diagnostic disable-next-line: cast-type-mismatch
 	---@cast handle Relm.Internal.VNode
 	if handle and handle.type then
 		if type(state) == "function" then state = state(handle.state) end
+		---@diagnostic disable-next-line: cast-type-mismatch
+		---@cast state Relm.State?
 		return vstate(handle, state)
 	end
 end
@@ -2258,12 +2273,14 @@ end
 
 ---Send a query to the Relm element with the given `handle`, which if not
 ---handled, will not propagate.
+---@deprecated Use hooks and refs instead of queries.
 ---@param handle Relm.Handle
 ---@param payload Relm.MessagePayload
 ---@return boolean handled Whether the query was handled.
 ---@return Relm.QueryResponse? result The result of the query, if handled.
 function lib.query(handle, payload)
-	---@diagnostic disable-next-line: return-type-mismatch
+	-- XXX: TYPES: deprecated, so ignoring typings here
+	---@diagnostic disable-next-line: return-type-mismatch, missing-return-value
 	return vquery(handle --[[@as Relm.Internal.VNode]], payload)
 end
 
@@ -2275,6 +2292,8 @@ end
 ---@return boolean handled Whether the query was handled.
 ---@return Relm.QueryResponse? result The result of the query, if handled.
 function lib.query_bubble(handle, payload, resent)
+	-- XXX: TYPES: deprecated, so ignoring typings here
+	---@diagnostic disable-next-line: return-type-mismatch, missing-return-value, redundant-return-value
 	return vquery_bubble(handle --[[@as Relm.Internal.VNode]], payload, resent)
 end
 
@@ -2289,6 +2308,8 @@ end
 ---@return boolean handled Whether the query was handled.
 ---@return Relm.QueryResponse? result The result of the query, if handled.
 function lib.query_broadcast(handle, payload, resent)
+	-- XXX: TYPES: deprecated, so ignoring typings here
+	---@diagnostic disable-next-line: return-type-mismatch, missing-return-value, redundant-return-value
 	return vquery_broadcast(handle --[[@as Relm.Internal.VNode]], payload, resent)
 end
 
@@ -2297,6 +2318,8 @@ end
 lib.Gather = lib.define_element({
 	name = "relm.Gather",
 	render = function(props) return props.children end,
+	-- XXX: TYPES: deprecated, so ignoring typings here
+	---@diagnostic disable-next-line: assign-type-mismatch
 	---@param me Relm.Internal.VNode
 	query = function(me, payload, props)
 		if payload.propagation_mode == "broadcast" then
@@ -2306,6 +2329,8 @@ lib.Gather = lib.define_element({
 			if nchildren > 0 then
 				local gathered = {}
 				for i = 1, nchildren do
+					-- XXX: TYPES: deprecated, so ignoring typings here
+					---@diagnostic disable-next-line: param-type-mismatch
 					local handled, res, tag = vquery_broadcast(children[i], payload)
 					if handled then gathered[tag or i] = res end
 				end
