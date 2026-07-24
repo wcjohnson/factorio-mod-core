@@ -186,7 +186,7 @@ end
 ---@generic I, O
 ---@param A I[]
 ---@param f fun(value: I, index: integer): O?
----@return O[]
+---@return (std.NotNull<O>)[]
 function lib.map(A, f)
 	local B = {}
 	local n = 0
