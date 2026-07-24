@@ -7,9 +7,9 @@ local counters = require("lib.core.counters")
 local event = require("lib.core.event")
 local log = require("lib.core.strace")
 
-local table_size = _G.table_size
-local pairs = _G.pairs
-local next = _G.next
+local table_size = table_size
+local pairs = pairs
+local next = next
 
 local BIG_INT = 9007199254740000
 
@@ -50,21 +50,21 @@ function lib.set_strace_handler(handler) strace = handler end
 ---@field public last_reschedule_tick uint The tick at which the last reschedule occurred.
 ---@field public work_period uint Number of idle ticks to insert between threads, plus 1. 1 is the lowest value, the recommended value, and results in threads running every tick.
 
+---@type {_thread: Core.Thread.Storage}
+storage = storage --[[@as {_thread: Core.Thread.Storage}]]
+
 event.bind(
 	"on_startup",
 	---@param reset_data Core.ResetData
 	function(reset_data)
 		---TODO: warn about unkilled threads from previous state?
 		if
-			-- Authorized storage injections.
-			---@diagnostic disable-next-line: undefined-field
 			storage._thread
 			and storage._thread.threads
 			and next(storage._thread.threads)
 		then
 			log.warn(
 				"Thread scheduler:",
-				---@diagnostic disable-next-line: undefined-field
 				table_size(storage._thread.threads),
 				"outstanding threads from previous state will be killed."
 			)
@@ -86,10 +86,7 @@ event.bind(
 )
 
 ---@return Core.Thread.Storage
-local function get_data()
-	---@diagnostic disable-next-line: undefined-field
-	return storage._thread
-end
+local function get_data() return storage._thread end
 
 ---@class Core.Thread
 ---@field public id integer Unique ID of the thread

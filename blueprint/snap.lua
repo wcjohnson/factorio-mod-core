@@ -375,8 +375,6 @@ local function find_global_grid_offset(
 	error("LOGIC ERROR: No valid global grid offset found.")
 end
 
-local ZERO_DIRECTION = 0 --[[@as defines.direction]]
-
 ---@param snap_entity BlueprintEntity
 local function get_snap_entity_geometry(
 	snap_entity,
@@ -400,8 +398,9 @@ local function get_snap_entity_geometry(
 	local snap_parity_x, snap_parity_y = 1, 1
 	if proto.parity_table then
 		local parity_table = proto.parity_table
-		local parity_entry = parity_table[snap_entity.direction or ZERO_DIRECTION]
-			or parity_table[ZERO_DIRECTION]
+		local parity_entry = parity_table[
+			(snap_entity.direction or 0)--[[@as uint]]
+		] or parity_table[0]
 		if parity_entry then
 			snap_parity_x, snap_parity_y = parity_entry[1], parity_entry[2]
 		end

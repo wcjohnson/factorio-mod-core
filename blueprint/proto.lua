@@ -5,7 +5,7 @@ local bbox_new = bbox_lib.bbox_new
 
 local lib = {}
 
----@alias Core.BlueprintGeometryParityTable table<defines.direction, [0|1, 0|1]>
+---@alias Core.BlueprintGeometryParityTable table<uint, [0|1, 0|1]>
 
 ---@type Core.BlueprintGeometryParityTable
 local curved_rail_a_parity_table = {
@@ -64,6 +64,7 @@ local parity_by_type = {
 ---@field public parity_table? Core.BlueprintGeometryParityTable If given, parity must be looked up per direction. If not given, parity is oddxodd for all directions. Never given unless build_Grid_size is 2.
 ---@field public global_center? boolean If true, this entity must be positioned at the global center (0,0) at worldspace. Only true for space platform hubs currently.
 
+-- XXX: MP SAFETY: this is a pure function of prototypes, therefore safe
 ---@type table<string, Core.BlueprintGeometryPrototypeInfo>
 local _cache = {}
 
