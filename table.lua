@@ -263,19 +263,21 @@ end
 ---@generic K, V, O
 ---@param T {[K] : V} | table<K, V>
 ---@param f fun(value: V, key: K): O?
----@return (std.NotNull<O>)[]
+---@return (std.NotNull<O>)[] result An array of non-nil results of the mapping function.
 ---@return integer n The number of elements in the result array.
+---@return integer m The number of elements iterated over in the original table.
 function lib.t_map_an(T, f)
 	local A = {}
-	local n = 0
+	local n, m = 0, 0
 	for k, v in pairs(T) do
+		m = m + 1
 		local x = f(v, k)
 		if x ~= nil then
 			n = n + 1
 			A[n] = x
 		end
 	end
-	return A, n
+	return A, n, m
 end
 
 ---Map a table into another table. The mapping function should return
