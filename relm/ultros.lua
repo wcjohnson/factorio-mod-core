@@ -21,9 +21,13 @@ local empty = setmetatable({}, {
 
 local function map(A, f)
 	local B = {}
+	local n = 0
 	for i = 1, #A do
 		local x = f(A[i], i)
-		if x ~= nil then B[#B + 1] = x end
+		if x ~= nil then
+			n = n + 1
+			B[n] = x
+		end
 	end
 	return B
 end
