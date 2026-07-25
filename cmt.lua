@@ -324,4 +324,16 @@ function lib.set_max_work_per_frame(max_work)
 	get_cmt_storage().max_work_per_frame = max_work
 end
 
+function lib.force_kill_all_tasks()
+	---@diagnostic disable-next-line: undefined-field
+	local data = storage._cmt --[[@as Core.CMT.Storage?]]
+	if data then
+		data.tasks = {}
+		data.wake_at = {}
+		data.rq_realtime = {}
+		data.rq_normal = {}
+		data.rq_normal_pointer = 1
+	end
+end
+
 return lib
