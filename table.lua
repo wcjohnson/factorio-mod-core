@@ -80,6 +80,29 @@ local function assign(dest, ...)
 end
 lib.assign = assign
 
+---Shallowly copies each given table into `dest`, returning `dest`. Also returns number of operations performed.
+---@generic K, V, T extends {[K]: V} | table<K, V>
+---@param dest T
+---@param ... ({[K]: V} | table<K, V> | nil)
+---@return T dest
+---@return integer n The number of key-value pairs copied.
+local function assign_n(dest, ...)
+	local n = select("#", ...)
+	if n == 0 then return dest, 0 end
+	local ops = 0
+	for i = 1, n do
+		local src = select(i, ...)
+		if type(src) == "table" then
+			for k, v in pairs(src) do
+				dest[k] = v
+				ops = ops + 1
+			end
+		end
+	end
+	return dest, ops
+end
+lib.assign_n = assign_n
+
 ---@generic T
 ---@param t T
 ---@return T
