@@ -5,6 +5,7 @@ local error = error
 local strfind = string.find
 local pairs = pairs
 local setmetatable = setmetatable
+local next = next
 
 ---@class Relm.Lib
 local lib = {}
@@ -205,6 +206,8 @@ local __EVENT_SINK__
 
 ---@alias Relm.MaybeNode Relm.Node|{}
 
+---@alias Relm.Children Relm.MaybeNode[]
+
 ---@alias Relm.RootId int
 
 ---@alias Relm.Value boolean|int|number|string
@@ -213,11 +216,13 @@ local __EVENT_SINK__
 
 ---@alias Relm.ManualPaintFn fun(elem: LuaGuiElement, props: Relm.Props)
 
----@alias Relm.Props {children?: (Relm.Node|Relm.Node[]), [string|int]:any}
+---@alias Relm.Props {children?: Relm.Children, [string|int]:any}
 
----@alias Relm.RenderFn<PropsT = Relm.Props> fun(props: PropsT): (Relm.Node|Relm.Node[]|nil)
+---@alias Relm.RenderResult (Relm.Node|Relm.Children|nil)
 
----@alias Relm.NodeFactory<PropsT = Relm.Props> fun(props: PropsT, children?: Relm.MaybeNode[]): Relm.Node
+---@alias Relm.RenderFn<PropsT = Relm.Props> fun(props: PropsT): (Relm.Node|Relm.Children|nil)
+
+---@alias Relm.NodeFactory<PropsT = Relm.Props> fun(props: PropsT, children?: Relm.Children): Relm.Node
 
 ---@alias Relm.EffectKey Relm.Value|table<int|string, Relm.EffectKey>
 
@@ -242,7 +247,7 @@ local __EVENT_SINK__
 
 ---@alias Relm.MessagePayload {key: string, propagation_mode: "bubble"|"broadcast"|"unicast", [any]:any}
 
----@alias Relm.Element.RenderDefinition fun(props: Relm.Props, state?: Relm.State): (Relm.Node|Relm.Node[]|nil)
+---@alias Relm.Element.RenderDefinition fun(props: Relm.Props, state?: Relm.State): (Relm.Node|Relm.Children|nil)
 
 ---@alias Relm.Element.MessageHandlerDefinition fun(me: Relm.Handle, payload: Relm.MessagePayload, props: Relm.Props, state?: Relm.State): boolean
 
@@ -585,6 +590,7 @@ local function vapply_children(vnode, render_children)
 	local vindex = 1
 	for i = 1, #render_children do
 		local rchild = render_children[i]
+		-- Skip empty children (no type field)
 		if rchild and rchild.type then
 			---@type Relm.Internal.VNode?
 			local vchild = vchildren[vindex]
@@ -734,6 +740,7 @@ local function vhydrate_children(vnode, render_children)
 	for i = 1, nrchildren do
 		local rchild = render_children[i]
 		local vchild = vchildren[vindex]
+		-- Skip empty children
 		if rchild and next(rchild) and vchild then
 			---@diagnostic disable-next-line: need-check-nil
 			vhydrate(vchild, render_children[i])

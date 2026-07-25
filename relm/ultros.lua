@@ -88,7 +88,7 @@ end
 
 ---Gather elements into an array, flattening subarrays and recursively
 ---gathering return values of functions.
----@param dst Relm.Node[]
+---@param dst Relm.MaybeNode[]
 local function gather_flat(dst, ...)
 	local n = select("#", ...)
 	for i = 1, n do
@@ -167,15 +167,18 @@ local assign = lib.assign
 ---Concatenate two arrays
 ---@generic T
 ---@param a1 T[]
----@param a2 T[]
+---@param a2? T[]
 ---@return T[]
 function lib.concat(a1, a2)
 	local A = {}
-	for i = 1, #a1 do
+	local n_a1 = #a1
+	for i = 1, n_a1 do
 		A[i] = a1[i]
 	end
-	for i = 1, #a2 do
-		A[#a1 + i] = a2[i]
+	if a2 then
+		for i = 1, #a2 do
+			A[n_a1 + i] = a2[i]
+		end
 	end
 	return A
 end
@@ -371,7 +374,7 @@ lib.WindowFrame = relm.define_element({
 				caption = props.caption,
 				drag_handle_ref = set_drag_handle,
 				decoration = props.decoration,
-			}),
+			}) --[[@as Relm.MaybeNode]],
 		}, props.children)
 		return Pr({
 			ref = set_window,
@@ -392,7 +395,7 @@ lib.FixedWindowFrame = relm.define_element({
 				closable = props.closable,
 				caption = props.caption,
 				decoration = props.decoration,
-			}),
+			}) --[[@as Relm.MaybeNode]],
 		}, props.children)
 		return Pr({ type = "frame", direction = "vertical" }, children)
 	end,
@@ -817,7 +820,7 @@ lib.RadioButtons = relm.define_element({
 lib.TabbedPane = relm.define_element({
 	name = "ultros.TabbedPane",
 	render = function(props)
-		local selected_tab, set_selected_tab = relm.use_state(1)
+		local selected_tab, set_selected_tab = relm.use_state(1 --[[@as uint?]])
 		local passed_props = assign({}, props)
 		passed_props.type = "tabbed-pane"
 		passed_props.listen = true
@@ -830,8 +833,9 @@ lib.TabbedPane = relm.define_element({
 			defines.events.on_gui_selected_tab_changed,
 			function(me, _, ev)
 				---@cast ev EventData.on_gui_selected_tab_changed
-				if ev.element == tabbed_pane_ref then
-					local idx = ev.element.selected_tab_index
+				local element = ev.element
+				if element and element == tabbed_pane_ref then
+					local idx = element.selected_tab_index
 					set_selected_tab(idx)
 				end
 			end
@@ -1197,6 +1201,7 @@ lib.SignalCountsInput = relm.define("ultros.SignalCountsInput", function(props)
 				on_change = function(_, next_count)
 					next_count = tonumber(next_count)
 					if not next_count then return end
+					next_count = floor(next_count)
 					if selected_index < 1 or selected_index > n_signals then return end
 					edit_signals(selected_index, nil, next_count, nil)
 				end,

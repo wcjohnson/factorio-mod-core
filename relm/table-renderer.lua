@@ -1,5 +1,3 @@
----@diagnostic disable: different-requires
-
 local type = type
 local tostring = tostring
 local SERPENT_ARGS = { maxlevel = 5, maxnum = 20, nocode = true }
@@ -45,7 +43,7 @@ lib.default_renderer = default_renderer
 ---@param default Core.RelmTableRendererer? Default renderer if no specific renderer is found. If `nil`, entries without renderers are ignored.
 ---@param primdef table? Additional primitive definition fields to apply to the table or flow.
 ---@param renderer_driven? boolean If true, iterate the renderers rather than the table. This preserves rendering order but misses keys with no corresponding renderer.
----@return Relm.Children
+---@return Relm.RenderResult
 function lib.render_table(
 	n_cols,
 	tbl,

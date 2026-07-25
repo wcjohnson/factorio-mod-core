@@ -1,3 +1,4 @@
+-- XXX: TYPES: lots of undefined globals, spurious
 ---@diagnostic disable: undefined-global
 
 --------------------------------------------------------------------------------
