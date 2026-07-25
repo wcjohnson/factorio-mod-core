@@ -722,7 +722,8 @@ local function vhydrate_children(vnode, render_children)
 	-- TODO: support rendering via ... parameter packs
 	local vchildren = vnode.children --[[@as Relm.Internal.VNode[] ]]
 	local nrchildren = #render_children
-	if #vchildren ~= nrchildren then
+	local nvchildren = #vchildren
+	if nvchildren ~= nrchildren then
 		if strace then
 			strace(
 				ERROR,
@@ -731,7 +732,7 @@ local function vhydrate_children(vnode, render_children)
 				"message",
 				"vhydrate: child count mismatch",
 				vnode.type,
-				#vchildren,
+				nvchildren,
 				nrchildren
 			)
 		end
@@ -940,17 +941,21 @@ local function vpaint_fix_tabs(elem)
 	-- will be left alone.
 	local children = elem.children
 	local tabs = {}
+	local tabs_n = 0
 	local non_tabs = {}
+	local non_tabs_n = 0
 	for i = 1, #children do
 		local child = children[i]
 		if child.type == "tab" then
-			tabs[#tabs + 1] = child
+			tabs_n = tabs_n + 1
+			tabs[tabs_n] = child
 		else
-			non_tabs[#non_tabs + 1] = child
+			non_tabs_n = non_tabs_n + 1
+			non_tabs[non_tabs_n] = child
 		end
 	end
 	elem.remove_tab()
-	local ntabs = min(#tabs, #non_tabs)
+	local ntabs = min(tabs_n, non_tabs_n)
 	for i = 1, ntabs do
 		elem.add_tab(tabs[i], non_tabs[i])
 	end
@@ -1117,14 +1122,15 @@ local function vpaint(vnode, context, same)
 	else
 		-- Handle children
 		local vchildren = vnode.children or EMPTY
-		if #vchildren > 0 then
+		local nvchildren = #vchildren
+		if nvchildren > 0 then
 			---@type Relm.Internal.PaintContext
 			local child_context = {
 				elem = elem,
 				index = 1,
 				root_id = context.root_id,
 			}
-			for i = 1, #vchildren do
+			for i = 1, nvchildren do
 				vpaint(vchildren[i], child_context)
 			end
 			-- Prune children beyond those rendered.
@@ -1589,9 +1595,11 @@ local function vquery_broadcast(node, payload, resent)
 		if handled then return true, result, tag end
 	end
 	local children = node.children
-	if not children or #children == 0 then return false end
-	for i = 1, #children do
-		local child = children[i]
+	if not children then return false end
+	local nchildren = #children
+	if nchildren == 0 then return false end
+	for i = 1, nchildren do
+		local child = children[i] --[[@as Relm.Internal.VNode]]
 		handled, result, tag = vquery_broadcast(child, payload)
 		if handled then return true, result, tag end
 	end
@@ -1972,7 +1980,7 @@ end
 ---Define a new re-usable Relm element type.
 ---@deprecated Prefer `relm.define` instead. This function will be removed in a future version.
 ---@param definition Relm.ElementDefinition
----@return Relm.NodeFactory #A factory function that creates a node of this type.
+---@return Relm.NodeFactory factory A factory function that creates a node of this type.
 function lib.define_element(definition)
 	if not definition.name then error("Element definition must have a name.") end
 	if registry[definition.name] then
@@ -2003,7 +2011,7 @@ end
 ---@generic PropsT
 ---@param name string The name of the element. Must be unique across all Relm element definitions.
 ---@param render Relm.RenderFn<PropsT> The render function for this element.
----@return Relm.NodeFactory<PropsT> #A factory function that creates a node of this type.
+---@return Relm.NodeFactory<PropsT> factory A factory function that creates a node of this type.
 function lib.define(name, render)
 	return lib.define_element({
 		name = name,
@@ -2369,7 +2377,7 @@ end
 ---Piggyback on Relm's strace handler. For use only by mods like component
 ---libraries that would appropriately log into Relm's context.
 ---@param level int
----@param ... any #An strace message.
+---@param ... any An strace message.
 function lib.strace(level, ...)
 	if strace then return strace(level, ...) end
 end
