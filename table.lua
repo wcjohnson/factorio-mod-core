@@ -326,6 +326,23 @@ function lib.t_reduce(T, initial, reducer)
 	return acc
 end
 
+---Reduce a table to a single value by applying a reducer function. Also return the number of reducer steps executed.
+---@generic K, V, A
+---@param T {[K]: V} | table<K, V>
+---@param initial A The initial accumulator value.
+---@param reducer fun(acc: A, key: K, value: V): A The reducer function.
+---@return A acc The final accumulated value.
+---@return integer n The number of reducer steps executed.
+function lib.t_reduce_n(T, initial, reducer)
+	local acc = initial
+	local n = 0
+	for k, v in pairs(T) do
+		acc = reducer(acc, k, v)
+		n = n + 1
+	end
+	return acc, n
+end
+
 ---Map over the elements of an array, flattening out one level of arrays.
 ---@generic I, O
 ---@param A I[]
@@ -525,9 +542,9 @@ end
 
 ---Pairwise add a*T2 to T1, in-place.
 ---@generic K, V
----@param T1 {[K]: V}
+---@param T1 {[K]: V} | table<K,V>
 ---@param a V
----@param T2 {[K]: V}
+---@param T2 {[K]: V} | table<K,V>
 function lib.vector_add(T1, a, T2)
 	for k, v in pairs(T2) do
 		T1[k] = (T1[k] or 0) + a * v

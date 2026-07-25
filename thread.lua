@@ -382,7 +382,7 @@ end
 
 ---Utility function for adding to a workload object.
 ---@param workload Core.Thread.Workload|nil
----@param qty number
+---@param qty number?
 ---@return number total_workload New workload total, or `qty` if `workload` is `nil`.
 function lib.add_workload(workload, qty)
 	-- Check for NAN
