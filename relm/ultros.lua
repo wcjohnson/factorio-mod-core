@@ -276,12 +276,14 @@ lib.Label = function(caption, extra_props)
 		caption = caption,
 	}, extra_props))
 end
-lib.BoldLabel = function(caption)
-	return Pr({
+---@param caption LocalisedString
+---@param extra_props Relm.Props?
+lib.BoldLabel = function(caption, extra_props)
+	return Pr(assign({
 		type = "label",
 		font = "default-bold",
 		caption = caption,
-	})
+	}, extra_props))
 end
 lib.RtBoldLabel = function(caption)
 	return Pr({
