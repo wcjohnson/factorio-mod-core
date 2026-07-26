@@ -222,7 +222,11 @@ function lib.customize(type, default_props, prop_transformer, is_container)
 	end
 end
 
-lib.customize_primitive = function(
+---@param default_props Relm.Props
+---@param prop_transformer fun(props: Relm.Props)|nil
+---@param is_container boolean?
+---@return Relm.NodeFactory
+local function customize_primitive(
 	default_props,
 	prop_transformer,
 	is_container
@@ -233,6 +237,25 @@ lib.customize_primitive = function(
 		prop_transformer,
 		is_container
 	)
+end
+lib.customize_primitive = customize_primitive
+
+---@generic PropsT = Relm.Props
+---@param default_props Relm.Props
+---@param prop_transformer fun(props: Relm.Props)?
+---@param prop_infer fun(props: PropsT)
+---@return Relm.NodeFactory<PropsT>
+local function custom_primitive(default_props, prop_transformer, prop_infer)
+	return function(props, children)
+		local next_props = assign({}, default_props) --[[@as Relm.Props]]
+		assign(next_props, props)
+		if prop_transformer then prop_transformer(next_props) end
+		next_props.children = children
+		return {
+			type = "Primitive",
+			props = next_props,
+		}
+	end
 end
 
 local function on_click_transformer(props)
@@ -349,7 +372,8 @@ lib.Titlebar = relm.define_element({
 		}
 		if props.decoration then gather_flat(children, props.decoration) end
 		if has_close_button then
-			children[#children + 1] = lib.CloseButton(close_button_props)
+			children[#children + 1] =
+				lib.CloseButton(close_button_props --[[@as Relm.Props]])
 		end
 
 		return Pr({ type = "flow", direction = "horizontal" }, children)
@@ -488,33 +512,39 @@ lib.Labeled = relm.define_element({
 	end,
 })
 
-lib.ChooseElemButton = lib.customize_primitive({
-	type = "choose-elem-button",
-	elem_type = "signal",
-}, function(props)
-	props.elem_value = props.value
-	props.value = nil
-	if props.virtual_signal then
-		props.elem_value = { type = "virtual", name = props.virtual_signal }
-	end
+lib.ChooseElemButton = custom_primitive(
+	{
+		type = "choose-elem-button",
+		elem_type = "signal",
+	},
+	function(props)
+		props.elem_value = props.value
+		props.value = nil
+		if props.virtual_signal then
+			props.elem_value = { type = "virtual", name = props.virtual_signal }
+		end
 
-	if props.on_change then
-		props.listen = true
-		props.message_handler = lib.handle_gui_events(
-			defines.events.on_gui_elem_changed,
-			function(me, gui_event, props2)
-				local my_elt = gui_event.element
-				run_event_handler(
-					props2.on_change,
-					me,
-					my_elt.elem_value,
-					my_elt,
-					gui_event
-				)
-			end
-		)
-	end
-end)
+		if props.on_change then
+			props.listen = true
+
+			props.message_handler = lib.handle_gui_events(
+				defines.events.on_gui_elem_changed,
+				function(me, gui_event, props2)
+					local my_elt = gui_event.element
+					run_event_handler(
+						props2.on_change,
+						me,
+						my_elt.elem_value,
+						my_elt,
+						gui_event
+					)
+				end
+			)
+		end
+	end,
+	---@param props { value: (SignalID|string)?, virtual_signal: string?, on_change: fun(me: LuaGuiElement, new_value: SignalID?, element: LuaGuiElement, event: EventData)? }
+	function(props) end
+)
 lib.SignalPicker = lib.ChooseElemButton
 
 local function checkbox_customizer(props)
