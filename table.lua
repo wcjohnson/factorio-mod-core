@@ -108,6 +108,22 @@ lib.assign_n = assign_n
 ---@return T
 function lib.shallow_copy(t) return assign({}, t) end
 
+---Extract a slice from an array
+---@generic T
+---@param A T[]
+---@param start integer The starting index of the slice (inclusive).
+---@param stop integer The ending index of the slice (inclusive).
+---@return T[]
+function lib.slice(A, start, stop)
+	local B = {}
+	local nB = 0
+	for i = start, stop do
+		nB = nB + 1
+		B[nB] = A[i]
+	end
+	return B
+end
+
 ---Concatenate all input arrays into a single new result array
 ---@generic T
 ---@param ... T[][]
@@ -202,6 +218,45 @@ function lib.split(A, f)
 		end
 	end
 	return T, F
+end
+
+---Partition an array into parts based on a picker function.
+---The picker function should return a key for each element. Elements with the same key will be collected into the same partition.
+---@generic T, K
+---@param A T[]
+---@param picker fun(value: T, index: integer): K
+---@return table<K, T[]> #A table mapping from keys to arrays of elements with that key.
+function lib.partition(A, picker)
+	local result = {}
+	for i = 1, #A do
+		local value = A[i]
+		local key = picker(value, i)
+		if key ~= nil then
+			local partition = result[key]
+			if partition == nil then
+				partition = {}
+				result[key] = partition
+			end
+			partition[#partition + 1] = value
+		end
+	end
+	return result
+end
+
+---Count the number of elements in an array that fall into each partition based on a picker function.
+---The picker function should return a key for each element. Elements with the same key will be counted together.
+---@generic T, K
+---@param A T[]
+---@param picker fun(value: T, index: integer): K
+---@return table<K, integer> #A table mapping from keys to counts of elements with that key.
+function lib.count_partition(A, picker)
+	local result = {}
+	for i = 1, #A do
+		local value = A[i]
+		local key = picker(value, i)
+		if key ~= nil then result[key] = (result[key] or 0) + 1 end
+	end
+	return result
 end
 
 ---Map an array to an array. Non-nil results of the mapping function
