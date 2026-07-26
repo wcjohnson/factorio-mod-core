@@ -1752,14 +1752,6 @@ end
 -- API: ROOTS
 --------------------------------------------------------------------------------
 
----@param start Relm.Internal.VNode?
-local function find_first_elem(start)
-	while start and not start.elem do
-		start = start.children and start.children[1]
-	end
-	return start and start.elem
-end
-
 ---Renders a new Relm root element by adding it to the given base element. The
 ---element will be rendered with the given props, along with an additional
 ---`root_id` prop reflecting the ID of the newly created Relm root.
