@@ -268,11 +268,13 @@ lib.CloseButton = lib.customize_primitive({
 	mouse_button_filter = { "left" },
 	on_click = "close",
 }, on_click_transformer)
-lib.Label = function(caption)
-	return Pr({
+---@param caption LocalisedString
+---@param extra_props Relm.Props?
+lib.Label = function(caption, extra_props)
+	return Pr(assign({
 		type = "label",
 		caption = caption,
-	})
+	}, extra_props))
 end
 lib.BoldLabel = function(caption)
 	return Pr({
@@ -289,12 +291,12 @@ lib.RtBoldLabel = function(caption)
 		caption = caption,
 	})
 end
-lib.RtLabel = function(caption)
-	return Pr({
+lib.RtLabel = function(caption, extra_props)
+	return Pr(assign({
 		type = "label",
 		rich_text_setting = defines.rich_text_setting.enabled,
 		caption = caption,
-	})
+	}, extra_props))
 end
 --- Rich text label with large font size
 lib.RtLgLabel = function(caption)

@@ -603,6 +603,18 @@ styles.relm_invisible_button = {
 	selected_clicked_graphical_set = {
 		base = { type = "none" },
 	},
+	default_font_color = { 1, 1, 1 },
+	hovered_font_color = { 1, 1, 1 },
+	clicked_font_color = { 1, 1, 1 },
+	disabled_font_color = { 1, 1, 1 },
+	selected_font_color = { 1, 1, 1 },
+	selected_hovered_font_color = { 1, 1, 1 },
+	selected_clicked_font_color = { 1, 1, 1 },
+	strikethrough_color = { 1, 1, 1 },
+	pie_progress_color = { 1, 1, 1 },
+	clicked_vertical_offset = 0,
+	padding = 0,
+	margin = 0,
 }
 
 styles.relm_raised_frame = {
@@ -676,4 +688,44 @@ styles.relm_label_signal_count = {
 	vertical_align = "bottom",
 	right_padding = 2,
 	parent_hovered_font_color = { 1, 1, 1 },
+}
+
+styles.relm_table_row_frame = {
+	type = "frame_style",
+	horizontally_stretchable = "on",
+	parent = "shallow_frame",
+	horizontal_flow_style = {
+		type = "horizontal_flow_style",
+		vertical_align = "center",
+		horizontally_stretchable = "on",
+	},
+}
+
+styles.relm_table_row_frame_selected = {
+	type = "frame_style",
+	horizontally_stretchable = "on",
+	parent = "shallow_frame",
+	graphical_set = {
+		base = {
+			corner_size = 8,
+			position = { 68, 0 },
+			tint = { 1, 0.6, 0 },
+		},
+	},
+	horizontal_flow_style = {
+		type = "horizontal_flow_style",
+		vertical_align = "center",
+		horizontally_stretchable = "on",
+	},
+}
+
+styles.relm_table_scroll_pane = {
+	type = "scroll_pane_style",
+	parent = "relm_naked_scroll_pane_no_padding",
+	vertical_flow_style = {
+		type = "vertical_flow_style",
+		vertically_stretchable = "on",
+		horizontally_stretchable = "on",
+		vertical_spacing = 0,
+	},
 }
