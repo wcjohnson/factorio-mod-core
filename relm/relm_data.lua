@@ -690,6 +690,17 @@ styles.relm_label_signal_count = {
 	parent_hovered_font_color = { 1, 1, 1 },
 }
 
+styles.relm_label_signal_count_upper = {
+	type = "label_style",
+	parent = "count_label",
+	width = 36,
+	height = 24,
+	horizontal_align = "right",
+	vertical_align = "bottom",
+	right_padding = 2,
+	parent_hovered_font_color = { 1, 1, 1 },
+}
+
 styles.relm_table_row_frame = {
 	type = "frame_style",
 	horizontally_stretchable = "on",
