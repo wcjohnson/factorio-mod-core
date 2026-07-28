@@ -4,9 +4,11 @@ local relm = require("lib.core.relm.relm")
 local relm_util = require("lib.core.relm.util")
 
 local strformat = string.format
-local type = _G.type
+local type = type
 local abs = math.abs
 local floor = math.floor
+local pairs = pairs
+local ipairs = ipairs
 
 local msg_bubble = relm.msg_bubble
 local msg_broadcast = relm.msg_broadcast
