@@ -12,6 +12,7 @@ local lib = {}
 __RELM__ = lib
 
 local EMPTY = setmetatable({}, { __newindex = function() end })
+local SENTINEL = {}
 
 --------------------------------------------------------------------------------
 -- FACTORIO STUFF
@@ -2051,6 +2052,7 @@ function lib.paint(handle)
 end
 
 ---Change the state of the Relm element with the given `handle`.
+---@deprecated Prefer `use_state` instead. This function will be removed in a future version.
 ---@param handle Relm.Handle
 ---@param state? Relm.State|fun(current_state: Relm.State): Relm.State The new state, or an update function of the current state.
 ---@return nil
@@ -2096,6 +2098,10 @@ function lib.msg_broadcast(handle, msg, resent)
 		return vmsg_broadcast(handle --[[@as Relm.Internal.VNode]], msg, resent)
 	end
 end
+
+--------------------------------------------------------------------------------
+-- API: HOOKS
+--------------------------------------------------------------------------------
 
 ---Create a reactive state that will persist across renders and cause the
 ---element to re-render when state changes. The value of the state will be
@@ -2197,6 +2203,29 @@ function lib.use_effect(effect_key, callback, cleanup)
 				end
 			end)
 		end
+	end
+end
+
+---Memoize a value based on the given dependencies. If the dependencies are the same as the last render, the memoized value will be returned. If the dependencies have changed, the `calculate` function will be called to compute a new value, which will be stored and returned.
+---@generic T
+---@param deps Any|nil Compared shallowly against the previous deps to determine if the memoized value should be recomputed. (This value will be written to `storage` and must be serializable.)
+---@param calculate fun(): T A function that calculates an arbitrary value. (The return value of this function is placed in `storage` and must be serializable.)
+---@return T result The memoized value, either from the previous render or newly computed.
+function lib.use_memo(deps, calculate)
+	local node, index, last_state = setup_hook()
+	local last_deps, last_value = SENTINEL, nil
+	if last_state then
+		last_deps, last_value = last_state[1], last_state[2]
+	end
+
+	if render_is_hydrating then
+		return last_value
+	else
+		if not shallow_eq(deps, last_deps) then
+			last_value = calculate()
+			set_hook_state(node, index, { deps, last_value })
+		end
+		return last_value
 	end
 end
 
