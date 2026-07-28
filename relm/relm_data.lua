@@ -712,6 +712,17 @@ styles.relm_table_row_frame = {
 	},
 }
 
+styles.relm_table_row_frame_top = {
+	type = "frame_style",
+	horizontally_stretchable = "on",
+	parent = "shallow_frame",
+	horizontal_flow_style = {
+		type = "horizontal_flow_style",
+		vertical_align = "top",
+		horizontally_stretchable = "on",
+	},
+}
+
 styles.relm_table_row_frame_selected = {
 	type = "frame_style",
 	horizontally_stretchable = "on",

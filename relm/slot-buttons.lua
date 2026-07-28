@@ -169,6 +169,9 @@ local function paint_buttons(elem, primitive_props, get_event_tags)
 	end
 end
 
+local ON_GUI_ELEMENT_CHANGED = defines.events.on_gui_elem_changed
+local ON_GUI_CLICK = defines.events.on_gui_click
+
 ---@alias SlotButtonGenerator fun(invariant: any, control: any): any, SignalID?, integer?, integer?, string?, Color?, Color?, boolean?, LocalisedString?
 
 ---@class SlotButtonTableProps
@@ -190,10 +193,10 @@ lib.SlotButtonTable = relm.define(
 			local tags = elt.tags
 			local button_index = tags and tags.button_index
 			if not button_index then return end
-			if gui_event.name == defines.events.on_gui_elem_changed then
+			if gui_event.name == ON_GUI_ELEMENT_CHANGED then
 				local hdlr = _props.on_change
 				if hdlr then return hdlr(button_index, elt.elem_value, gui_event) end
-			elseif gui_event.name == defines.events.on_gui_click then
+			elseif gui_event.name == ON_GUI_CLICK then
 				local hdlr = _props.on_click
 				if hdlr then return hdlr(button_index, elt.elem_value, gui_event) end
 			end
@@ -211,5 +214,27 @@ lib.SlotButtonTable = relm.define(
 		})
 	end
 )
+
+---Allow use of legacy button array iteration.
+function lib.make_button_array_iterator(button_array)
+	return function()
+		return function(array, index)
+			index = index + 1
+			local button = array[index]
+			if not button then return end
+			return index,
+				button.signal,
+				button.count,
+				button.upper,
+				button.button_style,
+				button.lower_color,
+				button.upper_color,
+				button.locked,
+				button.tooltip
+		end,
+			button_array,
+			0
+	end
+end
 
 return lib

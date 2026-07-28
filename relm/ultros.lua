@@ -245,7 +245,7 @@ lib.customize_primitive = customize_primitive
 ---@generic PropsT = Relm.Props
 ---@param default_props Relm.Props
 ---@param prop_transformer fun(props: Relm.Props)?
----@param prop_infer fun(props: PropsT)
+---@param prop_infer? fun(props: PropsT)
 ---@return Relm.NodeFactory<PropsT>
 local function custom_primitive(default_props, prop_transformer, prop_infer)
 	return function(props, children)
@@ -253,6 +253,30 @@ local function custom_primitive(default_props, prop_transformer, prop_infer)
 		assign(next_props, props)
 		if prop_transformer then prop_transformer(next_props) end
 		next_props.children = children
+		return {
+			type = "Primitive",
+			props = next_props,
+		}
+	end
+end
+
+---@alias Ultros.ContainerNodeFactory<PropsT> fun(props_or_children?: PropsT | Relm.Children, children?: Relm.Children): Relm.Node
+
+---@generic PropsT = Relm.Props
+---@param default_props Relm.Props
+---@param prop_transformer fun(props: Relm.Props)?
+---@param prop_infer? fun(props: PropsT)
+---@return Ultros.ContainerNodeFactory<PropsT>
+local function custom_container(default_props, prop_transformer, prop_infer)
+	return function(props_or_children, children)
+		local next_props = assign({}, default_props) --[[@as Relm.Props]]
+		if children then assign(next_props, props_or_children) end
+		if prop_transformer then prop_transformer(next_props) end
+		if children then
+			next_props.children = children
+		else
+			next_props.children = props_or_children
+		end
 		return {
 			type = "Primitive",
 			props = next_props,
@@ -268,15 +292,15 @@ local function on_click_transformer(props)
 	end
 end
 
-lib.VFlow = lib.customize_primitive({
+lib.VFlow = custom_container({
 	type = "flow",
 	direction = "vertical",
-}, nil, true)
+}, nil)
 local VF = lib.VFlow
-lib.HFlow = lib.customize_primitive({
+lib.HFlow = custom_container({
 	type = "flow",
 	direction = "horizontal",
-}, nil, true)
+}, nil)
 local HF = lib.HFlow
 lib.Button = lib.customize_primitive({
 	type = "button",
@@ -342,12 +366,12 @@ lib.RtMultilineLabel = function(caption)
 		caption = caption,
 	})
 end
-lib.Indicator = function(color)
-	return Pr({
+lib.Indicator = function(color, extra_props)
+	return Pr(assign({
 		type = "sprite",
 		style = "relm_indicator",
 		sprite = "relm_indicator_" .. color,
-	})
+	}, extra_props))
 end
 
 lib.Titlebar = relm.define_element({
