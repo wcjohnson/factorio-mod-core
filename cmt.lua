@@ -65,6 +65,7 @@ function Task:main() return 0 end
 ---@field public rq_normal_pointer uint The index of the next normal task to run
 ---@field public wake_at { [uint]: Core.CMT.TaskSet } The set of tasks scheduled to wake at a given tick
 ---@field public max_work_per_frame number Maximum amount of work to be done per frame across all tasks
+---@field public work_factor? number Dynamic multiplier to scale task workloads
 
 local function init_cmt_storage()
 	strace.warn(
@@ -78,6 +79,7 @@ local function init_cmt_storage()
 		rq_normal = {},
 		rq_normal_pointer = 1,
 		max_work_per_frame = 100,
+		work_factor = 1.0,
 	}
 	---@diagnostic disable-next-line: inject-field
 	storage._cmt = data
@@ -107,11 +109,16 @@ local function runq_step_task(task, tick)
 	if task._cmt_dead or not task._cmt_awake then return true, false, 0 end
 
 	-- Compute caps
+	local work_factor = get_cmt_storage().work_factor or 1.0
 	local work_current, work_cap =
-		task._cmt_work_current or 0, max(task._cmt_work_cap or 1, 1)
+		task._cmt_work_current or 0, max((task._cmt_work_cap or 1) * work_factor, 1)
 	if work_current >= work_cap then return true, false, 0 end
 	local spike_cap = task._cmt_spike_cap or BIG_INT
-	if spike_cap < 1 then spike_cap = BIG_INT end
+	if spike_cap < 1 then
+		spike_cap = BIG_INT
+	else
+		spike_cap = max(spike_cap * work_factor, 1)
+	end
 
 	-- Exec
 	task._cmt_yielded = nil
@@ -220,7 +227,8 @@ local function scheduler_tick(tick_data)
 		data.wake_at[tick] = nil
 	end
 
-	local work_cap = data.max_work_per_frame
+	local work_factor = data.work_factor or 1.0
+	local work_cap = data.max_work_per_frame * work_factor
 
 	-- Run realtime tasks with no cap on work per frame
 	local _, work_done =
@@ -322,6 +330,16 @@ end
 ---@param max_work number The target maximum amount of work to be done per frame across all tasks.
 function lib.set_max_work_per_frame(max_work)
 	get_cmt_storage().max_work_per_frame = max_work
+end
+
+---@return number work_factor The dynamic multiplier to scale task workloads.
+function lib.get_work_factor()
+	return get_cmt_storage().work_factor or 1.0
+end
+
+---@param factor number The dynamic multiplier to scale task workloads.
+function lib.set_work_factor(factor)
+	get_cmt_storage().work_factor = max(factor or 1.0, 0.01)
 end
 
 function lib.force_kill_all_tasks()
