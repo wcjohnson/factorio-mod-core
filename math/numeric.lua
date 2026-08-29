@@ -12,6 +12,27 @@ lib.MAX_SAFE_INTEGER = MAX_SAFE_INTEGER
 local BIG_INT = 9007199254740000
 lib.BIG_INT = BIG_INT
 
+local INT32_MAX = 2147483648
+lib.INT32_MAX = INT32_MAX
+local INT32_MIN = -2147483647
+lib.INT32_MIN = INT32_MIN
+
+local UINT32_MAX = 4294967295
+lib.UINT32_MAX = UINT32_MAX
+
+local UINT32_MAX_PLUS_ONE = 4294967296
+
+---Convert a uint32 to a signed int32. This is a "bit-for-bit" conversion, so the resulting int32 will have the same binary representation as the original uint32.
+---@param x uint32
+---@return int32
+function lib.uint32_to_int32(x)
+	if x > INT32_MAX then
+		return x - UINT32_MAX_PLUS_ONE
+	else
+		return x
+	end
+end
+
 ---Round to nearest factor of `bracket`.
 ---@param v number The value to round.
 ---@param bracket? number The rounding bracket. Defaults to 1.
