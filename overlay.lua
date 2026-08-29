@@ -81,6 +81,7 @@ function MultiLineTextOverlay:set_text(lines)
 		end
 		return
 	end
+	if not self.backdrop.valid then return end
 	local base_target = self.backdrop.left_top --[[@as ScriptRenderTargetTable]]
 	self.backdrop.visible = true
 	self.backdrop.right_bottom =
