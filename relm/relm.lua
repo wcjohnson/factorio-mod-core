@@ -465,8 +465,9 @@ local function get_vnode(elt, index)
 		end
 		return nil
 	end
-	---@type Relm.Internal.Root?
-	local root = storage._relm.roots[root_id]
+	local relm_state = storage._relm
+	if not relm_state then return nil end
+	local root = relm_state.roots[root_id]
 	if not root then
 		if strace then
 			strace(
@@ -1341,6 +1342,24 @@ local function recursive_clean(dirty_nodes, node)
 	end
 end
 
+---@param root Relm.Internal.Root
+local function immediate_destroy_root(root)
+	local relm_state = storage._relm
+	-- Don't try to repaint dead roots
+	dirty_roots[root] = nil
+	-- Kill the virtual root
+	vprune(root.vtree_root)
+	-- Destroy the rendered root element and all children
+	local root_element = root.root_element
+	if root_element and root_element.valid then root_element.destroy() end
+	-- Quash the state
+	if root.id then relm_state.roots[root.id] = nil end
+	if relm_state.reg_num_map and root.reg_num then
+		relm_state.reg_num_map[root.reg_num] = nil
+	end
+	dead_roots[root] = nil
+end
+
 ---@param node Relm.Internal.VNode
 local function defer_render_for_node(node)
 	local relm_state = storage._relm
@@ -1378,19 +1397,7 @@ local function deferred_render()
 
 	-- Kill dead roots
 	for root, _ in pairs(dead_roots) do
-		-- Don't try to repaint dead roots
-		dirty_roots[root] = nil
-		-- Kill the virtual root
-		vprune(root.vtree_root)
-		-- Destroy the rendered root element and all children
-		local root_element = root.root_element
-		if root_element and root_element.valid then root_element.destroy() end
-		-- Quash the state
-		relm_state.roots[root.id] = nil
-		if relm_state.reg_num_map and root.reg_num then
-			relm_state.reg_num_map[root.reg_num] = nil
-		end
-		dead_roots[root] = nil
+		immediate_destroy_root(root)
 	end
 
 	-- Rerender dirty roots
@@ -1728,8 +1735,8 @@ function lib.bootstrap_with_core_events(event)
 		local relm_storage = storage._relm
 		if not relm_storage then return end
 		local roots = relm_storage.roots
-		for id, _ in pairs(roots) do
-			lib.root_destroy(id)
+		for _, root in pairs(roots) do
+			immediate_destroy_root(root)
 		end
 	end)
 
