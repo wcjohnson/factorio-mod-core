@@ -2290,7 +2290,9 @@ function lib.invoke_closure(handle, closure_ref, ...)
 		handle --[[@as Relm.Internal.VNode]]
 	]
 	if not hooks then return end
-	local closure = hooks[closure_ref]
+	local closure = hooks[
+		closure_ref --[[@as uint]]
+	]
 	if type(closure) == "function" then return closure(...) end
 end
 
