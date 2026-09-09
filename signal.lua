@@ -131,12 +131,14 @@ local function encode_signal_key(name, stype, quality)
 end
 lib.encode_signal_key = encode_signal_key
 
----@type {[SignalKey]: SignalID}
+---@type table<SignalKey, SignalID>
 local _key_to_sig = {}
----@type {[SignalKey]: boolean}
+---@type table<SignalKey, boolean>
 local _key_is_virtual = {}
----@type {[SignalKey]: boolean}
+---@type table<SignalKey, boolean>
 local _key_is_quality = {}
+---@type table<SignalKey, uint>
+local _key_to_stack_size = {}
 
 ---Convert a signal to a key.
 ---@param signal SignalID
@@ -239,6 +241,23 @@ local function key_is_virtual(key)
 	return sig and (sig.type == "virtual") or false
 end
 lib.key_is_virtual = key_is_virtual
+
+---@param key SignalKey?
+---@return uint? stack_size
+local function key_to_stack_size(key)
+	if not key then return nil end
+	local sz = _key_to_stack_size[key]
+	if sz then return sz end
+	local sig = key_to_signal(key)
+	if sig and sig.type == "item" then
+		sz = prototypes.item[sig.name].stack_size
+		_key_to_stack_size[key] = sz
+		return sz
+	else
+		return nil
+	end
+end
+lib.key_to_stack_size = key_to_stack_size
 
 ---Convert an array of `Signal` to a `SignalCounts` mapping.
 ---If multiple signals have the same key, their counts are summed.
