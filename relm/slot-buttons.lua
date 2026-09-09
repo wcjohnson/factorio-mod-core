@@ -162,9 +162,10 @@ local function paint_buttons(elem, primitive_props, get_event_tags)
 	end
 
 	-- Destroy excess buttons
-	while #children >= child_index do
-		---@diagnostic disable-next-line: need-check-nil
-		children[child_index].destroy()
+	local n_children = #children
+	while n_children >= child_index do
+		local child = children[child_index]
+		if child then child.destroy() end
 		child_index = child_index + 1
 	end
 end
