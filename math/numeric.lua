@@ -1,6 +1,8 @@
 local floor = math.floor
 local ceil = math.ceil
 local abs = math.abs
+local tostring = tostring
+local strformat = string.format
 
 local lib = {}
 
@@ -117,7 +119,7 @@ function lib.ceil_approx(x)
 	end
 end
 
--- Round floorwards to the nearest Factorio tile.
+--- Round floorwards to the nearest Factorio tile.
 function lib.floor_tile(x) return floor_approx(x - 0.5) end
 
 ---Explicit boolean conversion.
@@ -129,6 +131,33 @@ function lib.Boolean(x)
 	else
 		return false
 	end
+end
+
+---Round towards zero.
+---@param value number The value to truncate.
+local function truncate(value) return value >= 0 and floor(value) or ceil(value) end
+lib.truncate = truncate
+
+---Format an int32 signal count into a SI-suffixed string that fits in an elem
+---button.
+---@param count int32 The signal count to format.
+function lib.format_signal_count(count)
+	local magnitude = abs(count)
+	local divisor, suffix
+
+	if magnitude >= 1e9 then
+		divisor, suffix = 1e9, "G"
+	elseif magnitude >= 1e6 then
+		divisor, suffix = 1e6, "M"
+	elseif magnitude >= 1e3 then
+		divisor, suffix = 1e3, "k"
+	else
+		return tostring(count)
+	end
+
+	local scaled = count / divisor
+	if magnitude >= divisor * 10 then return truncate(scaled) .. suffix end
+	return strformat("%.1f%s", truncate(scaled * 10) / 10, suffix)
 end
 
 return lib
