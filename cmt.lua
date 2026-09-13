@@ -14,6 +14,7 @@ local update_era_counter = era_lib.update_era_counter
 local filter_in_place = tlib.filter_in_place
 local pairs = pairs
 local tinsert = table.insert
+local tremove = table.remove
 
 local REALTIME_WORK_CAP = BIG_INT / 2.0
 
@@ -33,13 +34,13 @@ local lib = {}
 ---@field public _cmt_awake boolean Whether the task is awake or sleeping
 ---@field public _cmt_dead? true Whether the task is dead and should be removed from the runqueue
 ---@field public _cmt_yielded? true Whether the task yielded during its last timeslice.
+---@field public _cmt_spike_yielded? uint64 Tick on which the task spike yielded. The task will not run again on this tick.
 ---@field public _cmt_realtime? boolean Whether the task is realtime (runs every tick) or not (runs round-robin)
 ---@field public _cmt_tick_slept? uint The tick at which the task was put to sleep. If nil, the task is awake.
 ---@field public _cmt_tick_wake? uint The tick at which the task is scheduled to wake.
 ---@field public _cmt_name? string An optional friendly name for debugging purposes
 ---@field public _cmt_work_current number The amount of current sequential work done by this task.
 ---@field public _cmt_work_cap? number Maximum workload this task can consume sequentially. The task's main loop will be re-entered until this cap is reached. If not given, 0, or negative, the task will yield after each iteration of its main loop.
----@field public _cmt_spike_cap? number If this task consumes more than this workload in a single iteration, it will yield. There is no cap if this is nil, 0, or negative.
 ---@field public _cmt_work_per_iter Core.EraCounter ERA work per iteration of mainloop.
 ---@field public _cmt_debug_paused? boolean Whether the task is paused for debugging purposes
 ---@field public _cmt_debug_stepped? boolean Whether the task should execute one step while paused for debugging purposes
@@ -65,6 +66,7 @@ function Task:main() return 0 end
 ---@field public rq_normal_pointer uint The index of the next normal task to run
 ---@field public wake_at { [uint]: Core.CMT.TaskSet } The set of tasks scheduled to wake at a given tick
 ---@field public max_work_per_frame number Maximum amount of work to be done per frame across all tasks
+---@field public spike_owner_id? Core.CMT.TaskID Normal task that will run after realtime tasks next frame with one spike-yield bypass
 
 local function init_cmt_storage()
 	strace.warn(
@@ -96,26 +98,50 @@ end
 -- Task Core
 --------------------------------------------------------------------------------
 
+-- Transients
+-- XXX: MP SAFETY: These are only used across one iteration of a mainloop and therefore cannot lose synchronization across a save boundary.
+
+local running_task = nil
+local running_work_done = 0.0
+local running_work_cap = 0.0
+local bypass_spike_yield = false
+local running_as_spike_owner = false
+
 ---@param task Core.CMT.Task? Task at the head of the runqueue. If nil, the runqueue is empty.
 ---@param tick uint64 The current tick.
+---@param frame_work_done number Work already completed by this runqueue.
+---@param frame_work_cap number Maximum work for this runqueue.
+---@param spike_bypass? boolean Whether this invocation may bypass one spike yield.
 ---@return boolean advance `true` if we should advance the pointer to the next task
 ---@return boolean ran `true` if the task mainloop ran, `false` if task was sleeping, dead, or skipped.
 ---@return number work_done The amount of work done in this iteration.
-local function runq_step_task(task, tick)
+local function runq_step_task(
+	task,
+	tick,
+	frame_work_done,
+	frame_work_cap,
+	spike_bypass
+)
 	-- Check for nil, dead, sleeping
 	if not task then return false, false, 0 end
 	if task._cmt_dead or not task._cmt_awake then return true, false, 0 end
+	if task._cmt_spike_yielded == tick then return true, false, 0 end
 
 	-- Compute caps
 	local work_current, work_cap =
 		task._cmt_work_current or 0, max(task._cmt_work_cap or 1, 1)
 	if work_current >= work_cap then return true, false, 0 end
-	local spike_cap = task._cmt_spike_cap or BIG_INT
-	if spike_cap < 1 then spike_cap = BIG_INT end
 
 	-- Exec
 	task._cmt_yielded = nil
+	running_task = task
+	running_work_done = frame_work_done
+	running_work_cap = frame_work_cap
+	bypass_spike_yield = spike_bypass or false
+	task._cmt_spike_yielded = nil
 	local work_done = max(task:main() or 0, 1)
+	running_task = nil
+	bypass_spike_yield = false
 
 	-- Determine stats
 	update_era_counter(task._cmt_work_per_iter, work_done)
@@ -123,11 +149,7 @@ local function runq_step_task(task, tick)
 	task._cmt_work_current = work_current
 
 	-- Determine whether to yield
-	if
-		task._cmt_yielded
-		or (work_current >= work_cap)
-		or (work_done >= spike_cap)
-	then
+	if task._cmt_yielded or (work_current >= work_cap) then
 		return true, true, work_done
 	end
 	return false, true, work_done
@@ -145,6 +167,29 @@ local function runq_clean(runq, work_done)
 			return true
 		end
 	end)
+end
+
+---@param runq Core.CMT.Task[]
+---@param pointer uint
+---@param task Core.CMT.Task
+---@return uint pointer
+local function runq_move_to_end(runq, pointer, task)
+	for index = 1, #runq do
+		if runq[index] == task then
+			tremove(runq, index)
+			if index < pointer then pointer = (pointer - 1) end
+			if pointer > #runq then pointer = 1 end
+			---@cast pointer uint
+			if pointer == 1 then
+				tinsert(runq, task)
+			else
+				tinsert(runq, pointer, task)
+				pointer = pointer + 1
+			end
+			return pointer
+		end
+	end
+	return pointer
 end
 
 ---@param runq Core.CMT.Task[]
@@ -174,7 +219,7 @@ local function runq_steps(
 		end
 
 		-- Step task
-		local advance, ran, work = runq_step_task(task, tick)
+		local advance, ran, work = runq_step_task(task, tick, work_done, work_cap)
 		work_done = work_done + work
 		if advance then
 			-- Cleanup task that ran
@@ -226,6 +271,31 @@ local function scheduler_tick(tick_data)
 	local _, work_done =
 		runq_steps(data.rq_realtime, 1, 0, REALTIME_WORK_CAP, tick, 1)
 
+	-- A spike owner runs after realtime tasks and receives the only bypass.
+	local spike_owner_id = data.spike_owner_id
+	local spike_owner = spike_owner_id and data.tasks[spike_owner_id]
+	if spike_owner and not spike_owner._cmt_dead and spike_owner._cmt_awake then
+		data.spike_owner_id = nil
+		spike_owner._cmt_work_current = 0
+		running_as_spike_owner = true
+		local _, ran, work =
+			runq_step_task(spike_owner, tick, work_done, work_cap, true)
+		running_as_spike_owner = false
+		if ran then
+			work_done = work_done + work
+			spike_owner._cmt_work_current = 0
+			spike_owner._cmt_spike_yielded = tick
+			data.rq_normal_pointer =
+				runq_move_to_end(data.rq_normal, data.rq_normal_pointer, spike_owner)
+		end
+	elseif spike_owner_id and not spike_owner then
+		data.spike_owner_id = nil
+	elseif
+		spike_owner and (spike_owner._cmt_dead or not spike_owner._cmt_awake)
+	then
+		data.spike_owner_id = nil
+	end
+
 	-- Run normal tasks with the remaining work cap
 	if work_done < work_cap then
 		local next_pointer = runq_steps(
@@ -251,6 +321,7 @@ events.bind("on_shutdown", function()
 	data.rq_realtime = {}
 	data.rq_normal = {}
 	data.rq_normal_pointer = 1
+	data.spike_owner_id = nil
 end)
 
 --------------------------------------------------------------------------------
@@ -272,6 +343,40 @@ function lib.get_tasks() return get_cmt_storage().tasks end
 ---Yield the current task, allowing other tasks to run this frame instead. Note that calling this on a task that is not currently running will have no effect.
 ---@param task Core.CMT.Task The task to yield.
 function lib.yield(task) task._cmt_yielded = true end
+
+---Yield before performing a costly operation if its estimated workload would
+---reach a scheduler cap. Returns `true` when the caller should return from its
+---main loop without performing the operation. The first normal task to spike
+---yield runs after realtime tasks next frame and bypasses one spike yield to
+---prevent deadlock. An owner cannot reclaim ownership until it runs normally.
+---Realtime tasks cannot spike yield.
+---@param task Core.CMT.Task The currently running task.
+---@param upcoming_work number? Estimated workload of the pending operation.
+---@return boolean yielded
+function lib.spike_yield(task, upcoming_work)
+	if task ~= running_task then return false end
+	if (not upcoming_work) or upcoming_work <= 0 then return false end
+	if task._cmt_realtime then return false end
+	if bypass_spike_yield then
+		bypass_spike_yield = false
+		return false
+	end
+
+	local work_cap = max(task._cmt_work_cap or 1, 1)
+	if
+		(task._cmt_work_current or 0) + upcoming_work >= work_cap
+		or running_work_done + upcoming_work >= running_work_cap
+	then
+		task._cmt_spike_yielded = game.tick
+		task._cmt_yielded = true
+		local data = get_cmt_storage()
+		if not running_as_spike_owner and not data.spike_owner_id then
+			data.spike_owner_id = task._cmt_id
+		end
+		return true
+	end
+	return false
+end
 
 ---Sleep the given task, optionally for a given number of ticks. If no duration is given, the task will sleep indefinitely until woken by another task.
 ---@param task Core.CMT.Task The task to sleep.
@@ -333,6 +438,7 @@ function lib.force_kill_all_tasks()
 		data.rq_realtime = {}
 		data.rq_normal = {}
 		data.rq_normal_pointer = 1
+		data.spike_owner_id = nil
 	end
 end
 
