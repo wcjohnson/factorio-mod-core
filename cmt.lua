@@ -111,17 +111,10 @@ local running_as_spike_owner = false
 ---@param tick uint64 The current tick.
 ---@param frame_work_done number Work already completed by this runqueue.
 ---@param frame_work_cap number Maximum work for this runqueue.
----@param spike_bypass? boolean Whether this invocation may bypass one spike yield.
 ---@return boolean advance `true` if we should advance the pointer to the next task
 ---@return boolean ran `true` if the task mainloop ran, `false` if task was sleeping, dead, or skipped.
 ---@return number work_done The amount of work done in this iteration.
-local function runq_step_task(
-	task,
-	tick,
-	frame_work_done,
-	frame_work_cap,
-	spike_bypass
-)
+local function runq_step_task(task, tick, frame_work_done, frame_work_cap)
 	-- Check for nil, dead, sleeping
 	if not task then return false, false, 0 end
 	if task._cmt_dead or not task._cmt_awake then return true, false, 0 end
@@ -137,11 +130,9 @@ local function runq_step_task(
 	running_task = task
 	running_work_done = frame_work_done
 	running_work_cap = frame_work_cap
-	bypass_spike_yield = spike_bypass or false
 	task._cmt_spike_yielded = nil
 	local work_done = max(task:main() or 0, 1)
 	running_task = nil
-	bypass_spike_yield = false
 
 	-- Determine stats
 	update_era_counter(task._cmt_work_per_iter, work_done)
@@ -278,9 +269,10 @@ local function scheduler_tick(tick_data)
 		data.spike_owner_id = nil
 		spike_owner._cmt_work_current = 0
 		running_as_spike_owner = true
-		local _, ran, work =
-			runq_step_task(spike_owner, tick, work_done, work_cap, true)
+		bypass_spike_yield = true
+		local _, ran, work = runq_step_task(spike_owner, tick, work_done, work_cap)
 		running_as_spike_owner = false
+		bypass_spike_yield = false
 		if ran then
 			work_done = work_done + work
 			spike_owner._cmt_work_current = 0
@@ -352,7 +344,7 @@ function lib.yield(task) task._cmt_yielded = true end
 ---Realtime tasks cannot spike yield.
 ---@param task Core.CMT.Task The currently running task.
 ---@param upcoming_work number? Estimated workload of the pending operation.
----@return boolean yielded
+---@return boolean yielded Whether the task yielded due to the predicted spike.
 function lib.spike_yield(task, upcoming_work)
 	if task ~= running_task then return false end
 	if (not upcoming_work) or upcoming_work <= 0 then return false end
