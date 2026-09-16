@@ -3,6 +3,7 @@ local ceil = math.ceil
 local abs = math.abs
 local tostring = tostring
 local strformat = string.format
+local log = math.log
 
 local lib = {}
 
@@ -44,6 +45,14 @@ local function round(v, bracket)
 	return floor(v / bracket + 0.5) * bracket
 end
 lib.round = round
+
+---Clamped log for measuring algorithm runtimes. Ensures that small inputs do not produce degenerate outputs. Always returns 1 when `n <= 1`
+---@param n number The number to take the logarithm of.
+---@param base number? The base of the logarithm. Defaults to `math.e`.
+function lib.clamped_log(n, base)
+	if n <= 1 then return 1 end
+	return log(n, base)
+end
 
 ---Format a number of ticks in the form "HHvhMMvmSSvs" where a second is
 ---60 ticks.
