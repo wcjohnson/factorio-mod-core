@@ -186,7 +186,7 @@ local D8_r2 = dih_encode(4, 2, 0)
 
 ---Properties of each individual orientation class.
 ---@type table<Core.OrientationClass, Core.OrientationClass.Properties>
-lib.class_properties = {
+local class_properties = {
 	[OrientationClass.Unknown] = zero,
 	[OrientationClass.Unsupported] = zero,
 	[OrientationClass.Nil] = zero,
@@ -416,12 +416,21 @@ lib.class_properties = {
 		V_blueprint = dih_product(D8_r2, D8_s),
 	},
 }
+lib.class_properties = class_properties
 
 ---@param oclass Core.OrientationClass?
 ---@return Core.OrientationClass.Properties
 function lib.get_class_properties(oclass)
 	if not oclass then return zero end
-	return lib.class_properties[oclass] or zero
+	return class_properties[oclass] or zero
+end
+
+---@return boolean can_rotate Whether an entity of this class can rotate when placed in the world.
+function lib.can_rotate_in_world(oclass)
+	local props = class_properties[oclass]
+	if not props then return false end
+	if props.R_world and props.Rinv_world then return true end
+	return false
 end
 
 -- Precompute blueprint transforms for each orientation class
