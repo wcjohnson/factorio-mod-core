@@ -95,6 +95,28 @@ local circuit_network_types = {
 }
 lib.circuit_network_types = circuit_network_types
 
+---Prototype-types that do not have a unit number.
+---@type {[string]: true}
+local no_unit_number_types = {
+	["simple-entity"] = true,
+	["tree"] = true,
+	["plant"] = true,
+	["asteroid"] = true,
+	["resource"] = true,
+	["corpse"] = true,
+	["item-entity"] = true,
+}
+lib.no_unit_number_types = no_unit_number_types
+
+---An event filter for build/destroy events that excludes entities without
+---unit numbers.
+local no_unit_number_filter = {}
+for entity_type in pairs(no_unit_number_types) do
+	no_unit_number_filter[#no_unit_number_filter + 1] =
+		{ mode = "and", filter = "type", type = entity_type, invert = true }
+end
+lib.no_unit_number_filter = no_unit_number_filter
+
 ---Determine if a prototype-type can connect to the circuit network.
 ---@param ty string
 function lib.type_can_connect_to_circuit_network(ty)
