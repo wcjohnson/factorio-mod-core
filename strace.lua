@@ -356,4 +356,11 @@ function lib.set_log_level_name(level_name)
 	})
 end
 
+---@param level int The log level to check against the current log level setting.
+function lib.should_log(level)
+	---@diagnostic disable-next-line: undefined-field
+	local lv = (storage and storage._LOG_LEVEL) or 10
+	return level >= lv
+end
+
 return lib
