@@ -425,11 +425,24 @@ function lib.get_class_properties(oclass)
 	return class_properties[oclass] or zero
 end
 
----@return boolean can_rotate Whether an entity of this class can rotate when placed in the world.
 function lib.can_rotate_in_world(oclass)
 	local props = class_properties[oclass]
 	if not props then return false end
 	if props.R_world and props.Rinv_world then return true end
+	return false
+end
+
+function lib.can_hflip_in_world(oclass)
+	local props = class_properties[oclass]
+	if not props then return false end
+	if props.H_world then return true end
+	return false
+end
+
+function lib.can_vflip_in_world(oclass)
+	local props = class_properties[oclass]
+	if not props then return false end
+	if props.V_world then return true end
 	return false
 end
 
