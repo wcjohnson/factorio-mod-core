@@ -319,21 +319,16 @@ end
 ---and mirroring.
 ---@param orientation Core.Orientation
 ---@param entity LuaEntity A *valid* entity or ghost of this orientation's class
+---@return boolean success `true` if the orientation was successfully imposed, `false` otherwise.
 function lib.impose(orientation, entity)
 	local eoc = get_orientation_class_for_entity(entity)
 	local eoc_props = get_class_properties(eoc)
 	local oc, order, r, s = decode_wide(orientation)
-	if order ~= eoc_props.dihedral_r_order then
-		error(
-			"lib.orientation.impose: Orientation dihedral order "
-				.. order
-				.. " does not match entity orientation class dihedral order "
-				.. eoc_props.dihedral_r_order
-		)
-	end
+	if order ~= eoc_props.dihedral_r_order then return false end
 	local direction, mirroring = get_dm_wide(eoc, order, r, s)
 	entity.direction = direction
 	if mirroring ~= nil then entity.mirroring = mirroring end
+	return true
 end
 
 ---Transform a vector from a null orientation (north = -Y, east = +X) to this orientation.
