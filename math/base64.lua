@@ -36,7 +36,6 @@ function lib.encode_u32(value)
 			band(brshift(value, 2), 0x3F) + 1
 		),
 		strsub(BASE64, band(value, 0x03) * 16 + 1, band(value, 0x03) * 16 + 1),
-		"==",
 	})
 end
 
@@ -92,7 +91,6 @@ function lib.encode_u64(high, low)
 			band(brshift(low, 4), 0x3F) + 1
 		),
 		strsub(BASE64, band(low, 0x0F) * 4 + 1, band(low, 0x0F) * 4 + 1),
-		"=",
 	})
 end
 
