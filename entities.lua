@@ -1,3 +1,5 @@
+local pos_lib = require("math.pos")
+
 local lib = {}
 
 ---Determine whether an entity is a ghost and resolve its true prototype
@@ -79,7 +81,8 @@ function lib.get_wire_connections_from(from, include_script)
 			local origin = connection.origin
 			if (origin == WO_PLAYER) or (include_script and origin == WO_SCRIPT) then
 				local target = connection.target
-				connections[#connections + 1] = { wcid, origin, target.owner, target.wire_connector_id }
+				connections[#connections + 1] =
+					{ wcid, origin, target.owner, target.wire_connector_id }
 			end
 		end
 	end
@@ -95,11 +98,36 @@ function lib.restore_wire_connections_from(from, connections, reach_check)
 		local wcid, origin, target_entity, target_wcid = table.unpack(connection)
 		local from_connector = from.get_wire_connector(wcid, true)
 		if from_connector then
-			local to_connector = target_entity.valid and target_entity.get_wire_connector(target_wcid, true)
+			local to_connector = target_entity.valid
+				and target_entity.get_wire_connector(target_wcid, true)
 			if to_connector then
 				from_connector.connect_to(to_connector, reach_check, origin)
 			end
 		end
+	end
+end
+
+---@param entity LuaEntity
+---@param next_pos MapPosition
+---@param next_surface_index int?
+---@param raise_teleported boolean?
+function lib.teleport_if_far(
+	entity,
+	next_pos,
+	next_surface_index,
+	raise_teleported
+)
+	local surface_index = entity.surface_index
+	local pos = entity.position
+	local same_surface = not next_surface_index
+		or (next_surface_index == surface_index)
+	if same_surface and pos_lib.pos_close(pos, next_pos) then return false end
+	local target_surface = nil
+	if not same_surface then target_surface = next_surface_index end
+	if entity.teleport(next_pos, target_surface, raise_teleported) then
+		return true
+	else
+		return false
 	end
 end
 
