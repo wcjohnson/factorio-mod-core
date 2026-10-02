@@ -47,6 +47,10 @@ function MultiLineTextOverlay:destroy()
 	end
 end
 
+function MultiLineTextOverlay:is_valid()
+	return self.backdrop and self.backdrop.valid
+end
+
 ---@param target ScriptRenderTargetTable
 ---@param dx number
 ---@param dy number
