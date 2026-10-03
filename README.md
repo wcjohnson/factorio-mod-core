@@ -5,24 +5,25 @@ Small and (relatively) independent shared Lua tools for use in Factorio mods. Th
 ## Standalone Lua integration tests
 
 The tests in `tests` exercise library modules with mocked Factorio APIs, without
-launching Factorio. They require Lua 5.4 (`lua54` on `PATH`) and PowerShell.
+launching Factorio. Run them with your local Lua 5.4 interpreter.
 
 Run all tests from the parent mod repository root:
 
 ```powershell
-& .\mods\cybersyn2\lib\core\tests\run-tests.ps1
+lua54 .\mods\cybersyn2\lib\core\tests\run-tests.lua
 ```
 
 Or, from this library's root:
 
 ```powershell
-& .\tests\run-tests.ps1
+lua54 .\tests\run-tests.lua
 ```
 
-The runner works from any working directory when invoked by its path. To select
-a different Lua executable, pass `-LuaExecutable` with its command name or full
-path. It runs every top-level `tests\*.lua` file in name order, continues after
-test failures, and exits with code 1 if any test file fails (0 if all pass).
+Replace `lua54` with your interpreter's command name or executable path. The
+runner works from any working directory when invoked by its path and uses the
+same interpreter executable for each test. It runs every top-level
+`tests\*.lua` file except itself in name order, continues after test failures,
+and exits with code 1 if any test file fails (0 if all pass).
 
 ### Adding tests
 
