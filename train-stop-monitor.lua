@@ -137,12 +137,15 @@ local function start_watching(stop)
 	local watched_stops = get_storage().watched_stops
 	if watched_stops[unit_number] then return false end
 	local trc = stop.train_reservations_count
+	local parked_train = stop.get_stopped_train()
 
 	watched_stops[unit_number] = {
 		unit_number = unit_number,
 		stop = stop,
 		train_reservations_count = trc,
+		parked_train = parked_train,
 	}
+
 	script.register_on_object_destroyed(stop)
 	return true
 end
