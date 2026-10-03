@@ -11,11 +11,14 @@ local lib = {}
 ---@field stop LuaEntity The train stop being watched.
 ---@field unit_number int64 The unit number of the train stop.
 ---@field train_reservations_count int Last known number of train reservations for this stop.
-
----@alias trainlib.PollingBucket table<int64, true> Map from unit_number to a boolean indicating if the stop is being polled.
+---@field polling_prev? trainlib.WatchedStop Previous stop in the polling ring; nil when not polling.
+---@field polling_next? trainlib.WatchedStop Next stop in the polling ring; nil when not polling.
+---@field last_poll_tick? uint Tick of the most recent poll.
 
 ---@class trainlib.Storage
 ---@field watched_stops table<int64, trainlib.WatchedStop> Map from unit_number to the corresponding watched train stop.
+---@field polling_cursor? trainlib.WatchedStop Next stop to poll.
+---@field polling_count? integer Number of stops in the polling ring; absent in older saves.
 
 local function get_storage()
 	---@diagnostic disable-next-line: undefined-field
@@ -44,11 +47,48 @@ end
 -- Number of stops to poll per tick.
 local BUCKET_SIZE = 4
 
-local function start_polling(stop) end
+---@param watched_stop trainlib.WatchedStop
+local function start_polling(watched_stop)
+	if watched_stop.polling_next then return end
+	local st = get_storage()
+	local cursor = st.polling_cursor
+	if cursor then
+		local prev = cursor.polling_prev --[[@as trainlib.WatchedStop]]
+		watched_stop.polling_prev = prev
+		watched_stop.polling_next = cursor
+		prev.polling_next = watched_stop
+		cursor.polling_prev = watched_stop
+	else
+		watched_stop.polling_prev = watched_stop
+		watched_stop.polling_next = watched_stop
+		st.polling_cursor = watched_stop
+	end
+	st.polling_count = (st.polling_count or 0) + 1
+end
 
-local function stop_polling_by_unit_number(unit_number) end
+---@param watched_stop trainlib.WatchedStop
+local function stop_polling(watched_stop)
+	local next_stop = watched_stop.polling_next
+	if not next_stop then return end
+	local st = get_storage()
+	if next_stop == watched_stop then
+		st.polling_cursor = nil
+	else
+		local prev = watched_stop.polling_prev --[[@as trainlib.WatchedStop]]
+		prev.polling_next = next_stop
+		next_stop.polling_prev = prev
+		if st.polling_cursor == watched_stop then st.polling_cursor = next_stop end
+	end
+	watched_stop.polling_prev = nil
+	watched_stop.polling_next = nil
+	st.polling_count = (st.polling_count or 0) - 1
+end
 
-local function stop_polling(stop) end
+---@param unit_number int64
+local function stop_polling_by_unit_number(unit_number)
+	local watched_stop = get_storage().watched_stops[unit_number]
+	if watched_stop then stop_polling(watched_stop) end
+end
 
 ---@param stop LuaEntity
 ---@param watched_stop trainlib.WatchedStop?
@@ -61,7 +101,7 @@ local function update_stop(stop, watched_stop)
 
 	if trc < wtrc then
 		-- Reservation count decreased, stop polling and raise event
-		stop_polling(stop)
+		stop_polling(watched_stop)
 		events.raise(
 			"trainlib.reservation_count_decreased",
 			stop,
@@ -72,13 +112,21 @@ local function update_stop(stop, watched_stop)
 	return trc ~= wtrc
 end
 
-local function do_poll(stop) end
-
 local function stop_watching_by_unit_number(unit_number)
 	local watched_stops = get_storage().watched_stops
 	if not watched_stops[unit_number] then return end
 	stop_polling_by_unit_number(unit_number)
 	watched_stops[unit_number] = nil
+end
+
+---@param watched_stop trainlib.WatchedStop
+local function do_poll(watched_stop)
+	local stop = watched_stop.stop
+	if not stop.valid then
+		stop_watching_by_unit_number(watched_stop.unit_number)
+		return
+	end
+	update_stop(stop, watched_stop)
 end
 
 ---@param stop LuaEntity
@@ -118,8 +166,21 @@ events.bind(
 	end
 )
 
-events.bind(defines.events.on_tick, function()
-	-- Run polling
+events.bind(defines.events.on_tick, function(ev)
+	local st = get_storage()
+	local count = st.polling_count or 0
+	if count > BUCKET_SIZE then count = BUCKET_SIZE end
+	for _ = 1, count do
+		local watched_stop = st.polling_cursor
+		if not watched_stop then break end
+		-- Removals during a poll can shorten the ring before this tick ends.
+		local tick = ev.tick
+		if watched_stop.last_poll_tick == tick then break end
+		watched_stop.last_poll_tick = tick
+		-- Advance before polling: update_stop and its event can remove stops.
+		st.polling_cursor = watched_stop.polling_next
+		do_poll(watched_stop)
+	end
 end)
 
 local TS_WAIT_STATION = defines.train_state.wait_station
@@ -139,7 +200,7 @@ events.bind(
 				local watched_stop = get_watched(stop)
 				if watched_stop then
 					-- We can stop polling until train leaves, since reservation count can't possibly decrease until then.
-					stop_polling(stop)
+					stop_polling(watched_stop)
 					-- Take the opportunity to run an update inline.
 					update_stop(stop, watched_stop)
 				end
@@ -151,7 +212,7 @@ events.bind(
 				local watched_stop = get_watched(stop)
 				if watched_stop then
 					-- Start polling again, since reservation count might decrease now.
-					start_polling(stop)
+					start_polling(watched_stop)
 					update_stop(stop, watched_stop)
 				end
 			end
