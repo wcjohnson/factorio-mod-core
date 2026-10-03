@@ -14,6 +14,7 @@ local lib = {}
 ---@field polling_prev? trainlib.WatchedStop Previous stop in the polling ring; nil when not polling.
 ---@field polling_next? trainlib.WatchedStop Next stop in the polling ring; nil when not polling.
 ---@field last_poll_tick? uint Tick of the most recent poll.
+---@field parked_train? LuaTrain The train currently parked at this stop, if any.
 
 ---@class trainlib.Storage
 ---@field watched_stops table<int64, trainlib.WatchedStop> Map from unit_number to the corresponding watched train stop.
@@ -199,6 +200,7 @@ events.bind(
 			if stop then
 				local watched_stop = get_watched(stop)
 				if watched_stop then
+					watched_stop.parked_train = luatrain
 					-- We can stop polling until train leaves, since reservation count can't possibly decrease until then.
 					stop_polling(watched_stop)
 					-- Take the opportunity to run an update inline.
@@ -210,7 +212,8 @@ events.bind(
 			local stop = trains.get_stop_from_train(luatrain)
 			if stop then
 				local watched_stop = get_watched(stop)
-				if watched_stop then
+				if watched_stop and watched_stop.parked_train == luatrain then
+					watched_stop.parked_train = nil
 					-- Start polling again, since reservation count might decrease now.
 					start_polling(watched_stop)
 					update_stop(stop, watched_stop)
@@ -241,6 +244,13 @@ function lib.unwatch_stop(stop)
 		return false
 	end
 	stop_watching_by_unit_number(stop.unit_number)
+end
+
+---Unregisters a train stop by its unit number.
+---@param unit_number uint? The unit number of the train stop to unregister.
+function lib.unwatch_stop_by_unit_number(unit_number)
+	if not unit_number then return false end
+	stop_watching_by_unit_number(unit_number)
 end
 
 return lib
