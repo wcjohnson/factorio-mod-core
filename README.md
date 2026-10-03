@@ -1,3 +1,40 @@
 # factorio-mod-core
 
 Small and (relatively) independent shared Lua tools for use in Factorio mods. This repository is meant to be consumed as a Git submodule of larger and more featureful mods, in lieu of introducing a full formal dependency.
+
+## Standalone Lua integration tests
+
+The tests in `tests` exercise library modules with mocked Factorio APIs, without
+launching Factorio. They require Lua 5.4 (`lua54` on `PATH`) and PowerShell.
+
+Run all tests from the parent mod repository root:
+
+```powershell
+& .\mods\cybersyn2\lib\core\tests\run-tests.ps1
+```
+
+Or, from this library's root:
+
+```powershell
+& .\tests\run-tests.ps1
+```
+
+The runner works from any working directory when invoked by its path. To select
+a different Lua executable, pass `-LuaExecutable` with its command name or full
+path. It runs every top-level `tests\*.lua` file in name order, continues after
+test failures, and exits with code 1 if any test file fails (0 if all pass).
+
+### Adding tests
+
+Add a standalone `.lua` test entry point directly in `tests`; the runner discovers
+it automatically. Put shared helpers and fixtures in subdirectories so they are
+not run as test entry points. Each test runs in a separate Lua process with the
+library root as its working directory and its absolute path in `arg[1]`. Use that
+path to load modules, mock the Factorio APIs they need, and use assertions or
+errors to signal failures.
+
+To run just the polling tests from the library root:
+
+```powershell
+lua54 .\tests\train-stop-monitor.lua .
+```
