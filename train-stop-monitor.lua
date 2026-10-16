@@ -7,18 +7,18 @@ local lib = {}
 -- STORAGE
 -------------------------------------------------------------------------------
 
----@class trainlib.WatchedStop
+---@class Core.WatchedStop
 ---@field stop LuaEntity The train stop being watched.
 ---@field unit_number int64 The unit number of the train stop.
 ---@field train_reservations_count int Last known number of train reservations for this stop.
----@field polling_prev? trainlib.WatchedStop Previous stop in the polling ring; nil when not polling.
----@field polling_next? trainlib.WatchedStop Next stop in the polling ring; nil when not polling.
+---@field polling_prev? Core.WatchedStop Previous stop in the polling ring; nil when not polling.
+---@field polling_next? Core.WatchedStop Next stop in the polling ring; nil when not polling.
 ---@field last_poll_tick? uint Tick of the most recent poll.
 ---@field parked_train? LuaTrain The train currently parked at this stop, if any.
 
----@class trainlib.Storage
----@field watched_stops table<int64, trainlib.WatchedStop> Map from unit_number to the corresponding watched train stop.
----@field polling_cursor? trainlib.WatchedStop Next stop to poll.
+---@class Core.WatchedStopStorage
+---@field watched_stops table<int64, Core.WatchedStop> Map from unit_number to the corresponding watched train stop.
+---@field polling_cursor? Core.WatchedStop Next stop to poll.
 ---@field polling_count? integer Number of stops in the polling ring; absent in older saves.
 
 local function get_storage()
@@ -31,10 +31,10 @@ local function get_storage()
 		---@diagnostic disable-next-line: inject-field
 		storage._stop_monitor = st
 	end
-	return st --[[@as trainlib.Storage]]
+	return st --[[@as Core.WatchedStopStorage]]
 end
 
----@return trainlib.WatchedStop?
+---@return Core.WatchedStop?
 local function get_watched(stop)
 	local unit_number = stop.unit_number --[[@as int64]]
 	local watched_stops = get_storage().watched_stops
@@ -48,13 +48,13 @@ end
 -- Number of stops to poll per tick.
 local BUCKET_SIZE = 4
 
----@param watched_stop trainlib.WatchedStop
+---@param watched_stop Core.WatchedStop
 local function start_polling(watched_stop)
 	if watched_stop.polling_next then return end
 	local st = get_storage()
 	local cursor = st.polling_cursor
 	if cursor then
-		local prev = cursor.polling_prev --[[@as trainlib.WatchedStop]]
+		local prev = cursor.polling_prev --[[@as Core.WatchedStop]]
 		watched_stop.polling_prev = prev
 		watched_stop.polling_next = cursor
 		prev.polling_next = watched_stop
@@ -67,7 +67,7 @@ local function start_polling(watched_stop)
 	st.polling_count = (st.polling_count or 0) + 1
 end
 
----@param watched_stop trainlib.WatchedStop
+---@param watched_stop Core.WatchedStop
 local function stop_polling(watched_stop)
 	local next_stop = watched_stop.polling_next
 	if not next_stop then return end
@@ -75,7 +75,7 @@ local function stop_polling(watched_stop)
 	if next_stop == watched_stop then
 		st.polling_cursor = nil
 	else
-		local prev = watched_stop.polling_prev --[[@as trainlib.WatchedStop]]
+		local prev = watched_stop.polling_prev --[[@as Core.WatchedStop]]
 		prev.polling_next = next_stop
 		next_stop.polling_prev = prev
 		if st.polling_cursor == watched_stop then st.polling_cursor = next_stop end
@@ -92,7 +92,7 @@ local function stop_polling_by_unit_number(unit_number)
 end
 
 ---@param stop LuaEntity
----@param watched_stop trainlib.WatchedStop?
+---@param watched_stop Core.WatchedStop?
 ---@return boolean was_updated
 local function update_stop(stop, watched_stop)
 	if not watched_stop then return false end
@@ -120,7 +120,7 @@ local function stop_watching_by_unit_number(unit_number)
 	watched_stops[unit_number] = nil
 end
 
----@param watched_stop trainlib.WatchedStop
+---@param watched_stop Core.WatchedStop
 local function do_poll(watched_stop)
 	local stop = watched_stop.stop
 	if not stop.valid then
