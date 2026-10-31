@@ -10,8 +10,8 @@ local lib = {}
 
 ---@generic T
 ---@param M Sparse2DNested<T>
----@param x number
----@param y number
+---@param x int64
+---@param y int64
 ---@return T
 local function get(M, x, y)
 	local row = M[x]
@@ -23,8 +23,8 @@ lib.get = get
 ---Get a value from a symmetric sparse 2D matrix.
 ---@generic T
 ---@param M Sparse2DNested<T>
----@param x number
----@param y number
+---@param x int64
+---@param y int64
 ---@return T
 function lib.get_symmetric(M, x, y)
 	if x > y then
@@ -35,8 +35,8 @@ end
 
 ---@generic T
 ---@param M Sparse2DNested<T>
----@param x number
----@param y number
+---@param x int64
+---@param y int64
 ---@param value T?
 ---@return Sparse2DNested<T> M The original input matrix.
 local function set(M, x, y, value)
@@ -54,8 +54,8 @@ lib.set = set
 ---Set a value in a symmetric sparse 2D matrix.
 ---@generic T
 ---@param M Sparse2DNested<T>
----@param x number
----@param y number
+---@param x int64
+---@param y int64
 ---@param value T?
 ---@return Sparse2DNested<T> M The original input matrix.
 local function set_symmetric(M, x, y, value)
