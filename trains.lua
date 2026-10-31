@@ -26,6 +26,12 @@ function lib.get_stop_from_train(luatrain)
 	return get_stop_from_rail_end(luatrain.back_end)
 end
 
+---@param stop LuaEntity?
+---@return boolean
+function lib.is_valid_stop(stop)
+	return stop ~= nil and stop.valid and stop.type == "train-stop"
+end
+
 ---Determine if given entity is a valid stop connected to rail.
 ---@param stop LuaEntity?
 ---@return boolean
