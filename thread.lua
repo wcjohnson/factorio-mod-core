@@ -54,7 +54,7 @@ function lib.set_strace_handler(handler) strace = handler end
 storage = storage --[[@as {_thread: Core.Thread.Storage}]]
 
 event.bind(
-	"on_startup",
+	"on_core_startup",
 	---@param reset_data Core.ResetData
 	function(reset_data)
 		---TODO: warn about unkilled threads from previous state?

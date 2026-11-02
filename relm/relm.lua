@@ -1725,7 +1725,7 @@ function lib.bootstrap_with_core_events(event)
 	__EVENT_SINK__ = event --[[@as Relm.EventSink]]
 
 	-- Create storage on startup
-	event.bind("on_startup", function()
+	event.bind("on_core_startup", function()
 		-- Lint diagnostic here is ok. We can't disable it because of luals bug.
 		storage._relm = { roots = {}, root_counter = 0, reg_num_map = {} } --[[@as Relm.Internal.Storage]]
 	end)

@@ -60,7 +60,7 @@ lib.ABORT = ABORT
 function lib.register_handler(name, handler) handlers[name] = handler end
 
 event.bind(
-	"on_startup",
+	"on_core_startup",
 	---@param reset_data Core.ResetData
 	function(reset_data)
 		log.info("Scheduler: resetting state")

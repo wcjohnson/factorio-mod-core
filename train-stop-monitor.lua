@@ -34,6 +34,11 @@ local function get_storage()
 	return st --[[@as trainlib.Storage]]
 end
 
+events.bind("on_core_startup", function()
+	---@diagnostic disable-next-line: inject-field
+	storage._stop_monitor = { watched_stops = {} }
+end)
+
 ---@return trainlib.WatchedStop?
 local function get_watched(stop)
 	local unit_number = stop.unit_number --[[@as int64]]

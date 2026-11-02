@@ -16,7 +16,7 @@ storage._counters = {}
 ---@class Core.Lib.Counters
 local lib = {}
 
-event.bind("on_startup", function()
+event.bind("on_core_startup", function()
 	-- We don't reset existing counters on startup to ensure uniqueness of
 	-- previously generated IDs across restarts.
 

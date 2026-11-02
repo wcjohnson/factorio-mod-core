@@ -69,9 +69,6 @@ function Task:main() return 0 end
 ---@field public spike_owner_id? Core.CMT.TaskID Normal task that will run after realtime tasks next frame with one spike-yield bypass
 
 local function init_cmt_storage()
-	strace.warn(
-		"Initializing CMT storage. This should only happen once per game session."
-	)
 	---@type Core.CMT.Storage
 	local data = {
 		tasks = {},
@@ -90,9 +87,27 @@ end
 local function get_cmt_storage()
 	---@diagnostic disable-next-line: undefined-field
 	local data = storage._cmt
-	if not data then data = init_cmt_storage() end
+	if not data then
+		strace.warn(
+			"CMT storage accessed before on_core_startup; initializing lazily."
+		)
+		data = init_cmt_storage()
+	end
 	return data
 end
+
+events.bind("on_core_startup", function()
+	---@diagnostic disable-next-line: undefined-field
+	local data = storage._cmt --[[@as Core.CMT.Storage?]]
+	if data and next(data.tasks) then
+		strace.warn(
+			"CMT:",
+			table_size(data.tasks),
+			"outstanding tasks from previous state will NOT be processed."
+		)
+	end
+	init_cmt_storage()
+end)
 
 --------------------------------------------------------------------------------
 -- Task Core

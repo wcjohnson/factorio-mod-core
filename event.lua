@@ -34,6 +34,7 @@ local REMOVE_BINDING = setmetatable({}, { __newindex = function() end })
 ---@alias Core.EventHandler.on_load fun()
 ---@alias Core.EventHandler.on_configuration_changed fun(data: ConfigurationChangedData)
 ---@alias Core.EventHandler.on_nth_tick fun(data: NthTickEventData)
+---@alias Core.EventHandler.on_core_startup fun(reset_data: Core.ResetData)
 ---@alias Core.EventHandler.on_startup fun(reset_data: Core.ResetData)
 ---@alias Core.EventHandler.on_shutdown fun(reset_data: Core.ResetData)
 ---@alias Core.EventHandler.on_try_shutdown fun(reset_data: Core.ResetData)
@@ -55,6 +56,7 @@ local script_event_set = {
 	["on_load"] = true,
 	["on_configuration_changed"] = true,
 	["on_nth_tick"] = true,
+	["on_core_startup"] = true,
 	["on_startup"] = true,
 	["on_shutdown"] = true,
 	["on_try_shutdown"] = true,
@@ -364,7 +366,14 @@ event.bind(
 	true
 )
 
-event.bind("on_startup", function(reset_data)
+-- Fire core startup event first, before all mod startups.
+event.bind(
+	"on_startup",
+	function(reset_data) event.raise("on_core_startup", reset_data) end,
+	true
+)
+
+event.bind("on_core_startup", function(reset_data)
 	---@diagnostic disable-next-line: undefined-field
 	if storage._event and next(storage._event) then
 		strace.warn(
